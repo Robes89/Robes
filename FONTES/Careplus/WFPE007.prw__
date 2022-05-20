@@ -1,0 +1,25 @@
+#INCLUDE "RPTDEF.CH"
+#INCLUDE "PROTHEUS.CH"
+#INCLUDE "FWPRINTSETUP.CH"
+
+User Function WFPE007()
+Local cHTML := ""
+
+ConOut( "eeeee caraiii ")
+
+// Mensagem em formato HTML para sucesso no processamento.
+
+cHTML += 'Processamento executado com sucesso!' 
+cHTML += '<br>'
+
+
+
+//Mensagem em formato HTML para falha no processamento.
+
+cHTML += 'Falha no processamento!'
+
+cHTML += '<br>'
+
+
+
+Return cHTML

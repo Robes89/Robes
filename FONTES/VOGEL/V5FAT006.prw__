@@ -1,0 +1,817 @@
+#Include "Protheus.ch"
+#INCLUDE 'FWMVCDEF.CH'
+#INCLUDE "RPTDEF.CH"
+#INCLUDE "FWPrintSetup.ch"
+#Include "tbiconn.ch"
+#include "topconn.ch"
+
+/*
+Funcao      : V5FAT006()
+Parametros  : Nenhum
+Retorno     : Nenhum
+Objetivos   : Tela para seleção dos documentos a serem impressos ( Fatura e Boleto )
+Autor       : Renato Rezende
+Cliente		: Vogel
+Data/Hora   : 10/08/2016
+*/
+
+*----------------------------*
+User Function V5FAT006()
+	*----------------------------*
+	Local cTitulo		:= 'Vogel - Impressao Fatura\Boleto'
+	Local cDescription	:= 'Esta rotina permite imprimir as faturas e boletos para as notas fiscais selecionadas, dentro do periodo informado.'
+
+	Local oProcess
+	Local bProcesso
+
+	Private aRotina 	:= MenuDef()
+	Private cPerg 	 	:= 'V5FAT006'
+
+	Private dDtIni 		:= CtoD( '' )
+	Private dDtFim 		:= CtoD( '' )
+	Private cTpSel		:= ""
+
+	If !(cEmpAnt $ u_EmpVogel())
+		MsgStop( 'Empresa nao autorizada para utilizar essa rotina!', 'ATENÇÃO' )
+		Return
+	EndIf
+
+//Ajusta os perguntes
+	AjusSx1()
+
+	bProcesso	:= { |oSelf| SelNf( oSelf ) }
+
+	oProcess 	:= tNewProcess():New( "V5FAT006" , cTitulo , bProcesso , cDescription , cPerg ,,,,,.T.,.T.)
+
+Return
+
+/*
+Função  : SelNf
+Objetivo: Selecionar notas fiscais para impressão
+Autor   : Renato Rezende
+Data    : 10/08/2016
+*/
+	*----------------------------------------*
+Static Function SelNf( oProcess )
+	*----------------------------------------*
+	Local cExpAdvPL		:= ""
+	Local oColumn
+	Local bValid        := { || .T. }  //** Code-block para definir alguma validacao na marcação, se houver necessidade
+	Local bClick		:= { || .T. }
+	Local lPrimeiro		:= .T.
+	Local nSoma			:= 1
+	Private cMark		:= GetMark() //"001"
+	Private oMarkB
+
+	Pergunte( cPerg , .F. )
+
+	dDtIni 	:= MV_PAR01
+	dDtFim 	:= MV_PAR02
+	cTpSel 	:= MV_PAR03
+
+//SetKey( VK_F12 , { || Pergunte( 'V5FAT206' , .T. ) } )
+
+	SF2->( DbSetOrder( 1 ) )
+
+	cExpAdvPL	:= 'SF2->F2_FILIAL=="'+xFilial("SF2")+'" .And. SF2->F2_EMISSAO >= dDtIni .And. SF2->F2_EMISSAO <= dDtFim '
+//Fatura
+	If (cTpSel == 1)
+		cExpAdvPL	+= '.And. SF2->F2_TIPO == "N" .And. Alltrim(SF2->F2_ESPECIE) == "FAT" .And. SF2->F2_P_REF <> ""'
+//Telecom
+	ElseIf (cTpSel == 2)
+		cExpAdvPL	+= '.And. SF2->F2_TIPO == "N" .And. Alltrim(SF2->F2_ESPECIE) $ "NFST/NTST" .And. SF2->F2_P_REF <> ""'
+//Cominicacao=
+	ElseIf (cTpSel == 3)
+		cExpAdvPL	+= '.And. SF2->F2_TIPO == "N" .And. Alltrim(SF2->F2_ESPECIE) == "NFSC" .And. SF2->F2_P_REF <> ""'
+//NF Servico     
+	ElseIf (cTpSel == 4)
+		//cExpAdvPL	+= '.And. SF2->F2_TIPO == "N" .And. Alltrim(SF2->F2_ESPECIE) == "NFPS" .And. SF2->F2_P_REF <> "" " .And. SF2->F2_P_AGLUT == "N"'
+		cExpAdvPL	+= '.And. SF2->F2_TIPO == "N" .And. Alltrim(SF2->F2_ESPECIE) == "NFPS" .And. SF2->F2_P_REF <> "" '
+	EndIf
+
+	//CExpAdvPL	+= '.And. SF2->F2_CLIENTE == "8469"
+
+	oMarkB := FWMarkBrowse():New()
+	oMarkB:SetOnlyFields({ "F2_COND" })//Definicao das colunas do browser
+	oMarkB:SetAlias('SF2')
+	oMarkB:SetDescription(OemToAnsi('Envio das faturas e boletos aos clientes - Versão 2.0'))
+//oMarkB:SetFieldMark('F2_OK')
+	oMarkB:SetValid(bValid)
+
+	bClickM:= { || SF2->(RecLock("SF2",.F.)), IIF(Empty(SF2->F2_OK),SF2->F2_OK:=cMark,SF2->F2_OK:='') , SF2->(MsUnlock())}
+	bClickA:= { || SF2->(DbEval({|| SF2->(RecLock("SF2",.F.)), IIF(Empty(SF2->F2_OK),SF2->F2_OK:=cMark,SF2->F2_OK:='') , SF2->(MsUnlock())})),oMarkB:Refresh(.T.)}
+
+//Incluir legenda no Objeto
+	If SF2->(FieldPos("F2_P_ENV")) > 0
+		oMarkB:AddMarkColumns({ || If(Empty(SF2->F2_OK),'LBNO','LBOK')} ,  bClickM , bClickA)
+		oMarkB:AddLegend("AllTrim(SF2->F2_P_ENV)<>'S'", "BR_VERDE","Não Enviado")
+		oMarkB:AddLegend("AllTrim(SF2->F2_P_ENV)=='S'", "BR_VERMELHO","Enviado")
+	EndIf
+
+// Definição das colunas do browse
+	ADD COLUMN oColumn DATA { || F2_DOC   														} TITLE "Nota Fiscal"	SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || F2_XID  														} TITLE "Referencia"		SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || F2_SERIE   													} TITLE "Serie"			SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || F2_CLIENTE   													} TITLE "Cliente"		SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || F2_LOJA  														} TITLE "Loja"			SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || F2_EMISSAO   													} TITLE "Emissao"		SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || Transf( F2_VALBRUT + F2_DESCONT , X3Picture( 'F2_VALBRUT' ) ) 	} TITLE "Valor Bruto"	SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || Transf( F2_VALICM , X3Picture( 'F2_VALICM' ) )   				} TITLE "Valor Icms"	SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || Transf( F2_VALISS , X3Picture( 'F2_VALISS' ) )  				} TITLE "Valor ISS"		SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || Transf( F2_VALIMP5 , X3Picture( 'F2_VALIMP5' ) )  				} TITLE "Valor Pis"		SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || Transf( F2_VALIMP6 , X3Picture( 'F2_VALIMP6' ) )   			} TITLE "Valor Cofins"	SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || Transf( Posicione('SFT',6, xFilial('SFT') + 'S' + F2_DOC + F2_SERIE , 'FT_VALCSL') , X3Picture( 'F2_VALCSLL' ) )   			} TITLE "Valor CSLL"	SIZE  3 OF oMarkB
+	ADD COLUMN oColumn DATA { || Transf( F2_VALIRRF , X3Picture( 'F2_VALIRRF' ) )   			} TITLE "Valor IRRF"	SIZE  3 OF oMarkB
+
+//Filtro ADVPL
+	oMarkB:SetFilterDefault( cExpAdvPL )
+
+
+///Marcando ou desmarcando na abertura do browser
+	SF2->(DbOrderNickName('VGSF2'))
+	If  !SF2->(dbseek(xFilial('SF2') + dtos(dDtIni)))
+		While !SF2->(dbseek(xFilial('SF2') + dtos(Daysum(dDtIni,nSoma)))) .And. dtos(Daysum(dDtIni,nSoma)) <= dtos(dDtFim)
+			nSoma ++
+		EndDo
+	EndIf
+
+	While SF2->(!EOF()) .And. Dtos(SF2->(F2_EMISSAO)) <= dtos(dDtFim) 
+		//Filtro do browser
+		If &cExpAdvPL
+			If AllTrim(SF2->F2_P_ENV)<>'S'
+				SF2->(Reclock("SF2",.F.))
+				SF2->F2_OK := cMark
+				SF2->(MsUnlock())
+			Else
+				SF2->(Reclock("SF2",.F.))
+				SF2->F2_OK := ''
+				SF2->(MsUnlock())
+			EndIf
+		Else
+			SF2->(Reclock("SF2",.F.))
+			SF2->F2_OK := ''
+			SF2->(MsUnlock())
+		EndIf
+		SF2->(DbSkip())
+	EndDo
+	oMarkB:ForceQuitButton( .T. )
+
+	oMarkB:Activate()
+
+// Limpa o flag das notas ao sair da tela.
+	TcSqlExec("UPDATE " + RetSqlName( "SF2" ) + " SET F2_OK = '    ' WHERE F2_FILIAL = '" + xFilial( 'SF2' ) + "' AND " +;
+		"F2_OK = '" + cMark + "'")
+
+Return
+
+/*
+Função	: MenuDef
+Objetivo: Ajusta as opções do menu
+*/
+	*--------------------------------*
+Static Function MenuDef()
+	*--------------------------------*
+	Local aRotina 	:= {}
+
+	ADD OPTION aRotina TITLE 'Processar'	ACTION 'U_V5FATIMP(.F.)' 	OPERATION 10 ACCESS 0
+	ADD OPTION aRotina TITLE 'Preview'		ACTION 'U_V5FATIMP(.T.)' 	OPERATION 11 ACCESS 0
+
+Return aRotina
+
+/*
+Função	: V5FATIMP
+Objetivo: Imprimir Fatura
+*/
+	*---------------------------------------*
+User Function V5FatImp(lPreview)
+	*---------------------------------------*
+
+
+Return ( MsgRun( 'Gerando e transmitindo documentos.... favor aguarde' , '' , { || Imprime( lPreview ) } ) )
+
+/*
+Função	: Imprime
+Objetivo: Imprimir Fatura
+*/
+	*-------------------------------------------*
+Static Function Imprime( lPreview )
+	*-------------------------------------------*
+	Local lmpBol
+	Local lImpNF
+	Local cAnexo	:= ""
+	Local cSubject	:= ""
+	Local cMailTo 	:= ""
+	Local nSoma		:= 1
+	Local _cAnexBol := ''
+	Local _cTip460  := SuperGetMV('VO_TIPAGLU',, 'BOL')
+	Local _cQuery   := ''
+	Local _aAnexos  := {}
+	Local _cNFNaoAt := ''
+	Local _cNFSe    := ''
+	Local _lBolUni  := .T. // 14/08/2019
+	Local _nA	:= 0
+	Local aAux := {}
+	Local nPos := 0
+	Local cNameFile := "dados_faturamento.pdf"
+	Local cFileAux := GetTempPath() + "aglutinado.txt"
+	Local cFileAglut := GetTempPath() + "dados_faturamento.pdf"
+	Local nHandle := ""
+	Local cComand := ""
+	Local cDirAglut			:= "\FTP\documentos_gerados\"
+	Local cDirGhost := SuperGetMV("ES_GHOSTSC",.T., 'C:\TOTVS\Ambientes\P25-PRD\Ghostscript\bin') //'C:\TOTVS\Ambientes\P25-TST\Ghostscript\bin\gswin64.exe'
+	Local aNotas := {}
+	Local cDirCop := SuperGetMV('ES_DIRFAT6',, "C:\TOTVS\")
+	Local nPos := 0
+	Local nRegSF2 := 0
+	Local aNotasCapa := {}
+	Local lPrevAuX := lPreview
+	Local cCompetencia := ""
+	Local nX := 10
+
+	Private lErroArq := .F.
+	//Local cDirGHost := "C:\Program Files\gs\gs9.52\bin\gswin64.exe"
+
+/*	If Alltrim(UsrRetName(RetCodUsr())) == "totvs"
+		cDirGHost := "C:\Program Files\gs\gs9.52\bin\gswin64.exe"
+Endif */
+
+	Pergunte('V5FAT206' , .F.)
+	lImpBol := ( MV_PAR01 == 2 .Or. MV_PAR01 == 1 )
+	lImpNF 	:= ( MV_PAR01 == 3 .Or. MV_PAR01 == 1 )
+
+	SF2->(DbOrderNickName('VGSF2'))
+If  !SF2->(dbseek(xFilial('SF2') + dtos(dDtIni)))
+	While !SF2->(dbseek(xFilial('SF2') + dtos(Daysum(dDtIni,nSoma)))) .And. dtos(Daysum(dDtIni,nSoma)) <= dtos(dDtFim)
+			nSoma ++
+	EndDo
+EndIf
+
+While SF2->(!EOF()) .And. Dtos(SF2->(F2_EMISSAO)) <= dtos(dDtFim) .And. SF2->F2_FILIAL == xFilial('SF2') // 05/09/2019 - Adicionado a filial na condição.
+
+		cAnexo := ''//Limpa Variavel que armazena os anexos
+		nRegSF2 :=  SF2->(RECNO())
+
+		lPreview := lPrevAuX
+
+	If ( Alltrim(SF2->F2_OK) == cMark )
+
+			aNotasCapa := {}
+
+			SD2->(DbSetOrder(3))
+			SD2->(DbSeek(xFilial("SD2")+SF2->F2_DOC+SF2->F2_SERIE))
+
+			SC5->(DbSetOrder(1))
+			SC5->(DbSeek(xFilial("SD2")+SD2->D2_PEDIDO))
+
+			SA1->(DBSetOrder(1))
+			SA1->(DBSeek(xFilial('SA1')+SF2->F2_CLIENTE+SF2->F2_LOJA)) // 14/08/2019
+
+		If SF2->F2_P_AGLUT == "S"
+
+			If SA1->A1_XBOLUNI == 'S' // 14/08/2019
+
+					_cQuery := "SELECT SE1LIQ.R_E_C_N_O_ RECSE1 "
+					_cQuery += "FROM " + RetSqlName('SE1') + " SE1NF "
+					_cQuery += "INNER JOIN " + RetSqlName('SE5') + " SE5NF ON "
+					_cQuery += "SE5NF.D_E_L_E_T_ = '' "
+					_cQuery += "AND SE5NF.E5_FILIAL = '" + xFilial('SE5') + "' "
+					_cQuery += "AND SE5NF.E5_NUMERO = SE1NF.E1_NUM "
+					_cQuery += "AND SE5NF.E5_PREFIXO = SE1NF.E1_PREFIXO "
+					_cQuery += "AND SE5NF.E5_PARCELA = SE1NF.E1_PARCELA "
+					_cQuery += "AND SE5NF.E5_CLIFOR = SE1NF.E1_CLIENTE "
+					_cQuery += "AND SE5NF.E5_LOJA = SE1NF.E1_LOJA "
+					_cQuery += "AND SE5NF.E5_TIPO = SE1NF.E1_TIPO "
+					_cQuery += "AND SE5NF.E5_MOTBX = 'LIQ' " // Baixa por liquidação.
+					_cQuery += "AND SE5NF.E5_RECPAG = 'R' " // Contas a receber.
+					_cQuery += "INNER JOIN " + RetSqlName('SE1') + " SE1LIQ ON "
+					_cQuery += "SE1LIQ.D_E_L_E_T_ = '' "
+					_cQuery += "AND SE1LIQ.E1_FILIAL = '" + xFilial('SE1') + "' "
+					_cQuery += "AND SE1LIQ.E1_NUMLIQ = SE5NF.E5_DOCUMEN "
+					_cQuery += "AND SE1LIQ.E1_TIPO = '" + _cTip460 + "' "
+					_cQuery += "WHERE SE1NF.D_E_L_E_T_ = '' "
+					_cQuery += "AND SE1NF.E1_FILIAL = '" + xFilial('SE1') + "' "
+					_cQuery += "AND SE1NF.E1_NUM = '" + SF2->F2_DOC + "' "
+					_cQuery += "AND SE1NF.E1_PREFIXO = '" + SF2->F2_SERIE + "' "
+					_cQuery += "AND SE1NF.E1_TIPO IN ('NF', 'DIC') "
+
+					_lBolUni := .T.
+
+			Else // 14/08/2019 - SA1->A1_XBOLUNI == 'N'
+
+					_cQuery := "SELECT SE1NF.R_E_C_N_O_ RECSE1 "
+					_cQuery += "FROM " + RetSqlName('SE1') + " SE1NF "
+					_cQuery += "WHERE SE1NF.D_E_L_E_T_ = '' "
+					_cQuery += "AND SE1NF.E1_FILIAL = '" + xFilial('SE1') + "' "
+					_cQuery += "AND SE1NF.E1_NUM = '" + SF2->F2_DOC + "' "
+					_cQuery += "AND SE1NF.E1_PREFIXO = '" + SF2->F2_SERIE + "' "
+					_cQuery += "AND SE1NF.E1_TIPO IN ('NF', 'DIC') "
+
+					_lBolUni := .F.
+
+			EndIf
+
+				TcQuery _cQuery New Alias 'V5FAT006'
+
+			If V5FAT006->(!EOF())
+
+					SE1->(DbGoTo(V5FAT006->RECSE1)) // Titulo liquidado.
+
+					cAnexo    := ""
+					_cNFNaoAt := ''
+					lErroArq := .F.
+
+					_aAnexos := U_V5FAT016(.T., lPreview, @_cNFNaoAt, _lBolUni,,,,,@aNotasCapa) // 14/08/2019
+
+				If lErroArq .AND. !Empty(_cNFNaoAt)  //colocado por MARCELO 03/02/2021
+						SF2->(dbGoTo(nRegSF2))
+						SF2->(DbSkip())
+						V5FAT006->(DbCloseArea())
+						Loop
+				Endif
+					aAux := {}
+					aNotas := {}
+					// Copia todos os anexo tirando o boleto para a maquina local
+
+				If File( cFileAux )
+						Ferase( cFileAux )
+				Endif
+					nHandle := FCreate(cFileAux)
+					// Se encontrou anexos
+				If Len(_aAnexos)
+					For _nA := 1 To Len(_aAnexos)
+						// Adiciona todos os arquivos menos o boleto para ser aglutinado
+						If ! "BOLETO" $ UPPER(_aAnexos[_nA])
+								CpyS2T( _aAnexos[_nA] , GetTempPath() ,.T. )
+								//Preenche txt com todos os arquivos de anexo que serao aglutinados
+								nPos := Rat("\" , _aAnexos[_nA] ) + 1
+								FWrite(nHandle, GetTempPath() + Substr( _aAnexos[_nA] , nPos)  + CRLF)
+								aAdd(aNotas , Substr( _aAnexos[_nA] , nPos) )
+						Else
+								Aadd ( aAux , _aAnexos[_nA] )
+						Endif
+					Next
+						FClose(nHandle)
+     					//Nome do arquivo CID(A1_COD) + Competencia + Data de Emissao
+						cCompetencia := BuscaCom(SF2->F2_DOC,SF2->F2_SERIE)
+						//Validacao para casos que nao preenchem o campo C5_P_AM
+					If Empty(cCompetencia)
+							cNameFile :=  cFilAnt + "_" + Alltrim(SA1->A1_COD) + "_" + SF2->F2_XID + ".pdf" //INCLUIDO F2_SERIE 26/03/2021 - MARCELO -TRIYO
+					Else
+							cNameFile :=  cFilAnt + "_" + Alltrim(SA1->A1_COD) + "_" + SF2->F2_XID +  ".pdf" //INCLUIDO F2_SERIE 26/03/2021 - MARCELO -TRIYO
+					
+					Endif
+						cFileAglut :=  GetTempPath() + cNameFile
+						//Executa comando dependende do software ghost script, para aglutinar todos os PDFS gerados em um unico documento, execto o boleto
+						//cComand := '"C:\TOTVS\Ghostscript\bin\gswin64.exe" -sDEVICE=pdfwrite -dSAFER -dBATCH -dNOPAUSE -sOutputFile=' +  cFileAglut + ' @' + cFileAux + ' -c -q'
+						cComand :=  + cDirGhost + ' -sDEVICE=pdfwrite -dSAFER -dBATCH -dNOPAUSE -sOutputFile=' +  cFileAglut + ' @' + cFileAux + ' -c -q'
+						Sleep(2000)
+						WaitRun(cComand)
+     					//Envia o arquivo convertido para o servidor
+					If File( cDirAglut + cNameFile )
+	    			   Ferase( cDirAglut + cNameFile )
+					Endif
+ 					//Protecao quando ghost script nao gera o arquivo e verifica se o arquivo tem ao menos 100bytes
+					If ! CpyT2S( cFileAglut , cDirAglut ,.T. ) .OR. TamFile(cFileAglut) < 100
+  					   SF2->(dbGoTo(nRegSF2))
+					   SF2->(DbSkip())
+ 						 // Adicionado em 12/02/2019 o posicionamento na tabela SA1 para evitar erro de fatura sendo enviada para cliente errado.
+						 SA1->(DbSetOrder(1))
+						 SA1->(DbSeek(xFilial("SA1")+SF2->F2_CLIENTE+SF2->F2_LOJA))
+ 					     V5FAT006->(DbCloseArea())
+					     Loop
+					Endif
+					//Adiciona o arquivo convertido para ser anexado
+					Aadd ( aAux , cDirAglut + cNameFile )
+				Endif
+				//Atualiza o array de anexos apos conversao
+				_aAnexos := aClone(aAux)
+				//Validacao que o Ghost Script deu erro
+				If Len(_aAnexos) < 2
+					If "BOLETO" $ Upper(_aAnexos[1])
+						Alert('bruno ')
+					Endif
+				Endif
+				If Len(_aAnexos) > 0
+					For _nA := 1 To Len(_aAnexos)
+						If _nA > 1
+							cAnexo += ';'
+						EndIf
+							cAnexo += _aAnexos[_nA]
+					Next _nA
+				EndIf
+				//Exclui  o arquivo
+				Ferase(cFileAglut)
+				If !Empty(_cNFNaoAt)
+					cAnexo := ''
+					If !Empty(_cNFSe)
+						_cNFSe += CRLF
+					EndIf
+					_cNFSe += _cNFNaoAt
+				EndIf
+			EndIf
+			V5FAT006->(DbCloseArea())
+			// Adicionado em 12/02/2019 o posicionamento na tabela SA1 para evitar erro de fatura sendo enviada para cliente errado.
+			SA1->(DbSetOrder(1))
+			SA1->(DbSeek(xFilial("SA1")+SF2->F2_CLIENTE+SF2->F2_LOJA))
+		Else
+		 //Imprime Ambos ou Fatura
+			   cAnexo := ""
+			If ( lImpNF )
+				//Imprime Fatura ou Telecom
+				If cTpSel == 1 //Fatura
+					cAnexo := U_V5FAT009(.T., lPreview )
+				ElseIF	cTpSel == 2 //Telecom
+					cAnexo := U_V5FAT004(.T., lPreview )
+				ElseIF	cTpSel == 3 //Comunicacao
+					cAnexo := U_V5FAT010(.T., lPreview )
+				ElseIF  cTpSel == 4 //NF Servico
+					//SP
+					If xFIlial("SF2") == "01" .OR. xFilial("SF2") == "02"
+						cAnexo := U_V5FAT014(.T., lPreview )
+						//PORTO ALEGRE
+					ElseIf xFIlial("SF2") == "10"
+						cAnexo := U_V5FAT012(.T., lPreview )
+						//BH
+					ElseIf xFIlial("SF2") == "07"
+						cAnexo := U_V5FAT013(.T., lPreview )
+						//PALHOCA
+					ElseIf xFIlial("SF2") == "08"
+						cAnexo := U_V5FAT017(.T., lPreview )
+						//RJ
+					ElseIf xFIlial("SF2") == "03"
+						IF lPreview
+							alert("SIM")
+						Else
+							Alert("NAO")
+						Endif	
+						cAnexo := U_V5FAT018(.T., lPreview )
+
+						//RECIFE
+					ElseIf xFIlial("SF2") == "04"
+						cAnexo := U_V5FAT019(.T., lPreview )
+					Endif
+				EndIf
+				Sleep( 2000 )
+			
+			EndIf
+
+			//Imprime Ambos ou Boleto
+			If !Empty( cAnexo )
+				cAnexo += ";"
+			EndIf
+
+			SA1->(DbSetOrder(1))
+			SA1->(DbSeek(xFilial("SA1")+SF2->F2_CLIENTE+SF2->F2_LOJA))
+
+			//Nova validacao, valida se o cliente nao é pago com deposito
+			If ( lImpBol ) .AND. ( SA1->(FieldPos("A1_XBOLDEP")) == 0 .OR. ( SA1->A1_XBOLDEP != '2' .AND. SA1->A1_XBOLDEP != 'N' ))
+				//AOA - 05/06/2017 - Tratamento para verificar se imprime boleto Itau, Santander ou Banco do Brasil.
+				If SA1->A1_P_TPBOL == '1'// .Or. Alltrim(SM0->M0_CODIGO)=="G4"  //Tratamento para chamar sempre o boleto do itau na empresa G4.
+					_cAnexBol := U_V5FIN001(.T. , lPreview ) //Itau
+					If Empty(_cAnexBol)
+						cAnexo := '' // Limpo a variavel para que o e-mail não seja enviado e o processo seja interrompido.
+					Else
+						cAnexo += _cAnexBol
+					EndIf
+				ElseIf SA1->A1_P_TPBOL == '2' // Santander.
+					cAnexo += U_V5FIN004(.T. , lPreview ) // Santander.
+				ElseIf SA1->A1_P_TPBOL == '3' // Banco do Brasil.
+					cAnexo += U_V5FIN005(.T. , lPreview ) // Banco do Brasil.
+				EndIf
+			EndIf
+		EndIf
+		lPreview := lPrevAuX
+		If !Empty( cAnexo ) .And. !lPreview
+			// Daniel - anexa o CNAB FEBRABAN caso o cliente tenha o campo A1_XBOLFEB == "S"
+			If SA1->A1_XBOLFEB == "S"
+				dPar01 := dDtIni
+				dPar02 := dDtFim
+				cPar03 := SA1->A1_COD
+				cPar04 := SA1->A1_LOJA
+				cPar05 := "   "
+				cPar06 := "ZZZ"
+				cPar07 := MsDocPath() + "\" + AllTrim(cPar03) + "_" + StrZero(Year(dPAR01),4) + StrZero(Month(dPAR01),2) + ".TXT"
+
+				lRet := U_XXCNAB2(dPar01,dPar02,cPar03,cPar04,cPar05,cPar06,cPar07)
+
+				If lRet
+					cAnexo += ";" + cPar07
+				Else
+					MSGINFO("Falha na Geração do Arquivo CNAB FEBRABAN")
+				Endif
+			Endif
+		Endif
+		cSubject	:= 'Fatura\Boleto Vogel - Cli.:'+Alltrim(SA1->A1_NREDUZ)+' - ID.:'+Alltrim(SA1->A1_COD) +' - Controle Interno .: ' + Alltrim(SF2->F2_XID) //+ ' - Sistech.:'+Alltrim(SF2->F2_P_REF)
+		cMailTo		:= Alltrim(SA1->A1_EMAIL)
+		cEmail := '<html><head><meta http-equiv="Content-Language" content="pt-br"><meta http-equiv="Content-Type" content="text/html; charset=windows-1252">'
+		cEmail += '</head><body>'
+		cEmail += '<span style="font-weight: bold; text-align: left; font-style: italic; font-size: 11pt; font-family: calibri, sans-serif; color: #005A95;">'
+		cEmail += 'Prezado cliente,'
+		cEmail += '<br />'
+		cEmail += '<br />'
+		cEmail += 'Este é o seu faturamento mensal.'
+		cEmail += '<br />'
+		cEmail += 'Em caso de dúvidas, sugestões ou reclamações, estamos à disposição através dos canais:'
+		cEmail += '<br />'
+		cEmail += '<br />'
+		cEmail += 'Email: falecomavogel@vogeltelecom.com'
+		cEmail += '<br />'
+		cEmail += 'Atendimento telefônico: 0800 800 78 78'
+		cEmail += '<br />'
+		cEmail += '<br />'
+		If !cEmpAnt $ "FC/G4"
+			cEmail += 'Para sua comodidade, você também pode acessar seu faturamento diretamente no Portal do Cliente em https://www.vogeltelecom.com/cliente, utilizando seu usuário e senha.'
+			cEmail += '<br />'
+			cEmail += '<br />'
+			cEmail += 'Se não lembrar seu usuário e senha, não se preocupe, basta enviar um email para falecomavogel@vogeltelecom.com e solicitar a redefinição.'
+			cEmail += '<br />'
+			cEmail += '<br />'
+		EndIf
+		cEmail += 'Atenciosamente,'
+		cEmail += '<br />'
+		cEmail += '<br />'
+		cEmail += 'Vogel Telecom'
+		cEmail += '<br />'
+		cEmail += '<br />'
+		cEmail += '(Por favor, não responda este e-mail)</span>'
+		cEmail += '<br />'
+		cEmail += '<span style=" font-size: 8pt; font-family: calibri, sans-serif; color: #FFFFFF;">'+Alltrim(SM0->M0_CODIGO)+'-'+Alltrim(SM0->M0_FILIAL)+'-'+Alltrim(SM0->M0_NOMECOM)+'</span>'
+		cEmail += '</body></html>'
+		If !Empty(cAnexo) .AND. !lPreview 
+			If EnviaEma(cEmail,cSubject,cMailTo,cAnexo)
+				If SF2->(FieldPos("F2_P_ENV")) > 0
+					SF2->(RecLock("SF2",.F.))
+					SF2->F2_P_ENV	:= "S"
+					SF2->F2_OK		:= ""
+					SF2->(MsUnlock())
+				EndIf
+				If SF2->F2_P_AGLUT == "S"
+					//Regra antiga, limpa campos por busca de ja impressos
+					If Empty(SF2->F2_XID)
+					LimpaCampo(aNotasCapa)
+					//Regra nova limpa por F2_XID
+					Else
+					// Marca todas as notas aglutinadas como enviadas ao cliente.
+					TcSqlExec("UPDATE " + RetSqlName( "SF2" ) + " SET F2_P_ENV = 'S', F2_OK = '    ' WHERE F2_FILIAL = '" + xFilial( 'SF2' ) + "' AND " +;
+					"F2_XID = '" + SF2->F2_XID + "'")
+					Endif
+				EndIf
+			EndIf
+		Endif
+	EndIf
+	SD2->(DbCloseArea())
+	SC5->(DbCloseArea())
+	SF2->(dbGoTo(nRegSF2))
+	SF2->(DbSkip())
+EndDo
+If !Empty(_cNFSe)
+	Aviso('NFS-e não autorizados','A(s) seguinte(s) nota(s) não foi(ram) autorizada(s) na prefeitura: ' + CRLF + _cNFSe,{'Ok'},3)
+EndIf
+
+Return
+
+/*
+Função  : CriaPerg
+Objetivo: Verificar se os parametros estão criados corretamente.
+Autor   : Renato Rezende
+Data    : 10/08/2016
+*/
+*------------------------------*
+Static Function AjusSx1()
+	*------------------------------*
+	Local lAjuste := .F.
+
+	Local nI := 0
+
+	Local aHlpPor := {}
+	Local aHlpEng := {}
+	Local aHlpSpa := {}
+	Local aSX1    := {	{"01","Emissao De ?"    },;
+		{"02","Emissao Ate ?"   },;
+		{"03","Tipo Documento ?"    }}
+
+//Verifica se o SX1 está correto
+	SX1->(DbSetOrder(1))
+	For nI:=1 To Len(aSX1)
+		If SX1->(DbSeek(PadR(cPerg,10)+aSX1[nI][1]))
+			If AllTrim(SX1->X1_PERGUNT) <> AllTrim(aSX1[nI][2])
+				lAjuste := .T.
+				Exit
+			EndIf
+		Else
+			lAjuste := .T.
+			Exit
+		EndIf
+	Next
+
+	If lAjuste
+
+		SX1->(DbSetOrder(1))
+		If SX1->(DbSeek(AllTrim(cPerg)))
+			While SX1->(!EOF()) .and. AllTrim(SX1->X1_GRUPO) == AllTrim(cPerg)
+
+				SX1->(RecLock("SX1",.F.))
+				SX1->(DbDelete())
+				SX1->(MsUnlock())
+
+				SX1->(DbSkip())
+			EndDo
+		EndIf
+
+		aHlpPor := {}
+		Aadd( aHlpPor, "Informe a Data Inicial a partir da qual")
+		Aadd( aHlpPor, "se deseja imprimir.")
+
+		PutSx1(cPerg,"01","Emissao De ?","Emissao De ?","Emissao De ?","mv_ch1","D",08,0,0,"G","","","","S","mv_par01","","","","01/01/11","","","","","","","","","","","","",aHlpPor,aHlpEng,aHlpSpa)
+
+		aHlpPor := {}
+		Aadd( aHlpPor, "Informe a Data Final a partir da qual ")
+		Aadd( aHlpPor, "se deseja imprimir.")
+
+		PutSx1(cPerg,"02","Emissao Ate ?","Emissao Ate ?","Emissao Ate ?","mv_ch2","D",08,0,0,"G","","","","S","mv_par02","","","","31/12/11","","","","","","","","","","","","",aHlpPor,aHlpEng,aHlpSpa)
+
+		aHlpPor := {}
+		Aadd( aHlpPor, "Informe o Tipo da Nota Fiscal que")
+		Aadd( aHlpPor, "se deseja imprimir.")
+		Aadd( aHlpPor, "Fatura ou Telecom.")
+
+		PutSx1(cPerg,"03","Tipo Documento ?","Tipo Documento ?","Tipo Documento ?","mv_ch3","N",1,0,0,"C","","","","S","mv_par03","Fatura","","","","Telecom","","","Comunicacao","","","","","","","","",aHlpPor,aHlpEng,aHlpSpa)
+
+	EndIf
+//Segundo Pergunte
+	PutSx1( 'V5FAT206' ,'01' , 'Imprimir' ,'Imprimir','Imprimir','mv_ch1','N' , 1 ,0 ,0,'C',,,,,'MV_PAR01',"Ambos",,,,"Boleto",,,'Fatura',,,,,,,,,{"Informe o que deverá ser impresso."},,,)
+
+Return
+
+/*
+Funcao      : EnviaEma
+Parametros  : cHtml,cSubject,cTo,cAnexo
+Retorno     : Nil
+Objetivos   : Conecta e envia e-mail
+Autor       : Matheus Massarotto
+Data/Hora   : 05/01/2015 10:20
+*/
+
+	*--------------------------------------------------------------*
+Static Function EnviaEma(cEmail,cSubject,cTo,cAnexos)
+	*--------------------------------------------------------------*
+	Local cFrom			:= ""
+	Local cAttachment	:= ""
+	Local cCC      		:= ""
+	Local cToOculto		:= ""
+
+	IF EMPTY((cServer:=AllTrim(GetNewPar("MV_RELSERV",""))))
+		ConOut("Nome do Servidor de Envio de E-mail nao definido no 'MV_RELSERV'")
+		RETURN .F.
+	ENDIF
+
+	IF EMPTY((cAccount:=AllTrim(GetNewPar("ES_RELACNT",""))))
+		ConOut("Conta para acesso ao Servidor de E-mail nao definida no 'MV_RELACNT'")
+		RETURN .F.
+	ENDIF
+
+	cPassword 	:= AllTrim(GetNewPar("ES_RELPSW"," "))
+	lAutentica	:= GetMv("MV_RELAUTH",,.F.)         //Determina se o Servidor de Email necessita de Autenticação
+	cUserAut  	:= Alltrim(GetMv("ES_RELAUSR",," "))//Usuário para Autenticação no Servidor de Email
+	cPassAut  	:= Alltrim(GetMv("ES_RELAPSW",," "))//Senha para Autenticação no Servidor de Email
+	cTo 		:= AvLeGrupoEMail(cTo)
+	cCC			:= ""
+	cToOculto	:= AllTrim(GetNewPar("MV_P_00082"," ")) //+ ";bviniciusilva@gmail.com"
+	cFrom		:= AllTrim(GetMv("ES_RELFROM"))
+	cAttachment := cAnexos
+
+	CONNECT SMTP SERVER cServer ACCOUNT cAccount PASSWORD cPassword RESULT lOK
+
+	If !lOK
+		ConOut("Falha na Conexão com Servidor de E-Mail")
+		RETURN .F.
+	ELSE
+		If lAutentica
+			If !MailAuth(cUserAut,cPassAut)
+				MSGINFO("Falha na Autenticacao do Usuario")
+				DISCONNECT SMTP SERVER RESULT lOk
+				RETURN .F.
+			EndIf
+		EndIf
+		IF !EMPTY(cCC)
+			SEND MAIL FROM cFrom TO cTo CC cCC BCC cToOculto;
+				SUBJECT cSubject BODY cEmail ATTACHMENT cAttachment RESULT lOK
+		ELSE
+			SEND MAIL FROM cFrom TO cTo BCC cToOculto;
+				SUBJECT cSubject BODY cEmail ATTACHMENT cAttachment RESULT lOK
+		ENDIF
+		If !lOK
+			ConOut("Falha no Envio do E-Mail: "+ALLTRIM(cTo))
+			DISCONNECT SMTP SERVER
+			RETURN .F.
+		ENDIF
+	ENDIF
+
+	DISCONNECT SMTP SERVER
+
+Return( .t. )
+
+//Busca a compotencia conforme nota
+Static Function BuscaCom(cNota,cSerie)
+
+	Local cRet := ""
+	Local cAliasQry := GetNextAlias()
+
+	BeginSQL Alias cAliasQry
+
+	SELECT C5_P_AM 
+
+	FROM %Table:SC5% SC5 
+
+	WHERE C5_FILIAL = %Exp:FWxFilial("SC5")%
+
+	AND C5_NUM = 
+
+	( SELECT TOP 1  D2_PEDIDO
+
+	FROM %TABLE:SD2% SD2
+
+	WHERE D2_FILIAL = %Exp:FWxFilial("SD2")%
+
+	AND D2_DOC = %Exp:cNota% AND D2_SERIE = %Exp:cSerie%
+
+	AND SD2.D_E_L_E_T_ = '' )
+
+	AND SC5.D_E_L_E_T_ = ''
+
+	
+
+	EndSQL
+
+	If !(cAliasQry)->(EOF())
+		cRet := Alltrim(StrTran((cAliasQry)->C5_P_AM,"/",""))
+	Endif
+
+	(cAliasQry)->(DbCloseArea())
+
+Return cRet
+
+//Limpa campos para nao eivar 2 x a NF
+Static Function LimpaCampo(aNotasCapa)
+
+	Local aArea := GetArea()
+	Local aAreaSF2 := SF2->(GetArea())
+	Local nX := 1
+
+	For nX := 1 To Len(aNotasCapa)
+		SF2->(DbSetOrder(1))
+		If SF2->(dbSeek( FWxFilial("SF2") + aNotasCapa[nX] ))
+			If Reclock("SF2",.F.)
+				F2_P_ENV = 'S'
+				F2_OK = '    '
+				SF2->(MsUnlock())
+			Endif
+		EndIf
+	Next
+
+
+	RestArea(aArea)
+	RestArea(aAreaSF2)
+
+Return
+
+//Retorna tamanho do arquivo
+Static Function TamFile(cFile)
+
+	Local nRet := 0
+	Local aFilePDF := Directory(cFile)
+
+	//Trava validando que o arquivo foi encontrado
+	If Len(aFilePDF) > 0
+		nRet :=  aFilePDF[1,2]
+	Endif
+
+Return nRet
+
+
+/*
+		    lPreview := lPrevAuX
+	If !Empty( cAnexo ) .And. !lPreview
+			// Daniel - anexa o CNAB FEBRABAN caso o cliente tenha o campo A1_XBOLFEB == "S"
+		If SA1->A1_XBOLFEB == "S"
+				dPar01 := dDtIni
+				dPar02 := dDtFim
+				cPar03 := SA1->A1_COD
+				cPar04 := SA1->A1_LOJA
+				cPar05 := "   "
+				cPar06 := "ZZZ"
+				cPar07 := MsDocPath() + "\" + AllTrim(cPar03) + "_" + StrZero(Year(dPAR01),4) + StrZero(Month(dPAR01),2) + ".TXT"
+
+				lRet := U_XXCNAB2(dPar01,dPar02,cPar03,cPar04,cPar05,cPar06,cPar07)
+
+			If lRet
+					   cAnexo += ";" + cPar07
+			Else
+					   MSGINFO("Falha na Geração do Arquivo CNAB FEBRABAN")
+			Endif
+		Endif
+	EndIf
+			V5FAT006->(DbCloseArea())
+			// Adicionado em 12/02/2019 o posicionamento na tabela SA1 para evitar erro de fatura sendo enviada para cliente errado.
+			SA1->(DbSetOrder(1))
+			SA1->(DbSeek(xFilial("SA1")+SF2->F2_CLIENTE+SF2->F2_LOJA))

@@ -1,0 +1,65 @@
+Codigo Registro0010010"0"                                                         
+Codigo Remessa 0020020"1"                                                         
+Literal Remessa0030090"REMESSA"                                                   
+Codigo Servico 0100110"01"                                                        
+Literal Servico0120260"COBRANCA       "                                           
+Cod.Empresa    0270400Alltrim(SEE->EE_CODEMP)                                     
+Brancos        0410460SPACE(06)                                                   
+Nome do Cedente0470760UPPER(SUBSTR(SM0->M0_NOMECOM,1,30))                         
+Nro. do Banco  0770790PADL(ALLTRIM(SA6->A6_COD),3,"0")                            
+Nome do Banco  0800900SUBSTR(SA6->A6_NOME,1,11)                                   
+Brancos        0910940SPACE(04)                                                   
+Data Gravacao  0951000GravaData(dDataBase,.F.)                                    
+Brancos        1013910SPACE(291)                                                  
+Num.Arquivo    3923940INCREMENTA()                                                
+No.Seq.Registro3954000"000001"                                                    
+Codigo Registro0010010"1"                                                         
+Codigo Inscr   0020030IIF(SM0->M0_TPINSC==3,01,02)                                
+Numero Inscr   0040170PADL(ALLTRIM(SM0->M0_CGC),14,"0")                           
+Cod.Empresa    0180310Alltrim(SEE->EE_CODEMP)                                     
+Brancos        0320370SPACE(06)                                                   
+Uso Empresa    0380620SE1->E1_IDCNAB                                              
+Nosso Numero   0630710IIF(EMPTY(SE1->E1_NUMBCO),STRZERO(0,9),SE1->E1_NUMBCO)      
+Brancos        0721010SPACE(30)                                                   
+Codigo Moeda   1021040"000"                                                       
+Uso do Banco   1051050SPACE(1)                                                    
+Tipo Carteira  1061070STRZERO(VAL(SEE->EE_DIASPRT),2)                             
+Ocorr. Remessa 1081080IF((SE1->E1_SITUACA) == "4", "2","1")                       
+Ocorr. Remessa 1091100IIF(EMPTY(SE1->E1_OCORREN),"01",SE1->E1_OCORREN)            
+Meu Numero     1111200SE1->E1_NUM+SE1->E1_PARCELA                                 
+Data Vencimento1211260GravaData(SE1->E1_VENCREA,.F.)                              
+Valor Titulo   1271390U_VLRCALC()                                                 
+Codigo Banco   1401420"341"                                                       
+Agencia        1431470Strzero(Val(SA6->A6_AGENCIA),5)                             
+Cod.Ident.Tit. 1481490"01"                                                        
+Identif.Titulo 1501500"N"                                                         
+Dt.Emissao Tit.1511560GravaData(SE1->E1_EMISSAO,.F.,1)                            
+Instr.Primaria 1571580IIF(Empty(SEE->EE_INSTPRI),"00",SEE->EE_INSTPRI)            
+Instr.Secundari1591600IIF(Empty(SEE->EE_INSTSEC),"00",SEE->EE_INSTSEC)            
+Juro Mora      1611730u_MORA()                                                    
+Data Desconto  1741790STRZERO(0,6)                                                
+Valor Desconto 1801922STRZERO(0,13)                                               
+Valor IOF      1932052STRZERO(0,13)                                               
+Data da Multa  2062110STRZERO(0,6)                                                
+Vl Abat / Multa2122152STRZERO(SEE->EE_XMULTA*100,4)                               
+Zeros          2162180STRZERO(0,3)                                                
+Cod.Inscr.Sacad2192200IIF(SA1->A1_PESSOA ="F",01,02)                              
+Nro.Inscr.Sacad2212340STRZERO(VAL(SA1->A1_CGC),14,0)                              
+Nome do Sacado 2352740SUBSTR(SA1->A1_NOME,1,40)                                   
+End. Sacado    2753140IIF(EMPTY(SA1->A1_ENDCOB),SA1->A1_END,SA1->A1_ENDCOB)       
+Bairro Sacado  3153240IIF(EMPTY(SA1->A1_BAIRROC),SA1->A1_BAIRRO,SA1->A1_BAIRROC)  
+Brancos        3253260SPACE(02)                                                   
+Cep do Sacado  3273340IF(EMPTY(SA1->A1_CEPC),SA1->A1_CEP,SA1->A1_CEPC)            
+Cidade Sacado  3353490IIF(EMPTY(SA1->A1_MUNC),SA1->A1_MUN,SA1->A1_MUNC)           
+Estado Sacado  3503510IIF(EMPTY(SA1->A1_ESTC),SA1->A1_EST,SA1->A1_ESTC)           
+Mensa.Bloquete 3523810ALLTRIM(SEE->EE_FORMEN1)                                    
+Brancos        3823880SPACE(07)                                                   
+Banco Emissor  3893910"341"                                                       
+Nro.Seq.Registr3923940Substr(SEE->EE_ULTDSK,4,3)                                  
+Nro Sequencial 3954000Incrementa()                                                
+Codigo Registro0010010"9"                                                         
+Brancos        0023680SPACE(367)                                                  
+Quantidade     3693760STRZERO(INCREMENTA()-2,8)                                   
+Valor Total    3773910STRZERO(INT(NSOMAVALOR*100),15)                             
+Nº Seq Arquivo 3923940STRZERO(0,3)                                                
+Num Sequencial 3954000Incrementa()                                                

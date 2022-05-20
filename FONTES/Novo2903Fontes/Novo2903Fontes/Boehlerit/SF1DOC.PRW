@@ -1,0 +1,6 @@
+USER FUNCTION SF1DOC()
+If !Empty(M->F1_DOC) .Or. !Empty(cNFISCAL)
+   M->F1_DOC := StrZero(Val(M->F1_DOC),9)
+   CNFISCAL := M->F1_DOC
+Endif   
+Return(.T.)
