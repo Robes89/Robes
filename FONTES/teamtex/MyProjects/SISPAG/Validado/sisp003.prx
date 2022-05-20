@@ -1,0 +1,34 @@
+#include "rwmake.ch"     
+    
+/*
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Programa  ³ SISP003  ³ Autor ³ Thiago Menegocci    ³ Data ³ 24/05/2019 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descri‡…o ³ ExecBlock disparado do 341REM.PAG para retornar vencimento ³±±
+±±³          ³ do codigo de barras.                                       ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³ Uso      ³ SISPAG                                                     ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+*/
+
+User Function SISP003()
+
+Private cDtInc := Ctod("07/10/1997")
+Private _cRetSisp3 := SE2->E2_VENCREA
+
+If Len(Alltrim(SE2->E2_LINDIG)) == 44
+	_cRetSisp3 := Substr(SE2->E2_LINDIG,6,4)
+	_cRetSisp3 := cDtInc + Val(_cRetSisp3)  
+	Return(_cRetSisp3)
+EndIf
+
+If Len(Alltrim(SE2->E2_LINDIG)) == 47
+	_cRetSisp3 := Substr(SE2->E2_LINDIG,34,4)
+	_cRetSisp3 := cDtInc + Val(_cRetSisp3)  
+	Return(_cRetSisp3)
+EndIf	 
+
+Return(_cRetSisp3)

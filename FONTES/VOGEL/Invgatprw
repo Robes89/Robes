@@ -1,0 +1,1651 @@
+#Include "Protheus.ch"
+#Include "tbiconn.ch"
+#Include "fileio.ch"
+#Include "TOPCONN.CH"
+#Include "Shell.ch"
+#include 'parmtype.ch'
+#include 'FwMvcDef.ch'
+#INCLUDE "DIRECTRY.CH"  
+
+#define  B7FILIAL   01
+#define  B7COD      02
+#define  B7LOCAL    03
+#define  B7DESC     04
+#define  B7LOCALIZ  05
+#define  B7NUMSERI  06
+#define  B7LOTECTL  07
+#define  B7QUANT    08
+
+ #define B2CM1      01
+ #define B2RESERVA  02
+ #define B2QEMP     03
+ #define B2QACLASS  04
+
+/*/{Protheus.doc} User Function InvZero
+    (Gerar lancamentos de inventario na tabela SB7, a partir de planilha gerada pelos usuarios)
+    @type  Function
+    @author Sergio Silveira
+    @since 03/12/2021
+    @version 1.0
+    @param NIL
+    @return NIL
+    @example
+    
+        Colunas da Planilha:
+
+        Filial;Produto;Armazem;Descricao;Endereco;Num de Serie;Lote;Qtde RGIS;Custo;Unidade
+
+    @see (links_or_references)
+    /*/
+User Function InvPlan()
+    
+    Local  cPerg        := "INVPLAN"
+    Local  aSays 	    := {}
+    Local  aButtons	    := {}
+    Local  nOpca 	    := 0  
+    Local  nQProdsBlock := 0
+    Local  nTotLidos    := 0
+    Local  nSemSB2      := 0
+    Local  nSemSBE      := 0
+    Local  nDuplicSB7   := 0
+    Local  cMsg         := ""
+    Local  cDirPlan     := ""
+    Local  aLogsE       := {}
+    Local  aLogAux      := {}    
+    Local  nI           := 0
+    Local  nX           := 0
+    Local  nSemSB1      := 0  
+    Local  nSemArmazem  := 0 
+    Local  nEmpenhos    := 0  
+    Local  nReservas    := 0 
+    Local  nCustoNeg    := 0 
+    Local  nHaEnderecar := 0 
+    Local  nSaldoNeg    := 0 
+    Local  nQPreNotas   := 0 
+    Local  nErroNSerie  := 0 
+    Local  nQEndeNOk    := 0
+    Local  nLoteNaoOk   := 0
+    Local  cDirErro     := ""
+    Local  nQtdeRegs    := 0
+    Local  lProcessa    := .T.
+    Local  cAliasPlan   := "QPLAN"
+    Local  nRegInv      := 0 
+    Local  nRegNaoInv   := 0
+
+    Private aErrosLog   := {}
+    Private cCadastro   := "Gerar Lançamentos de Inventário a partir da Planilha!"
+    Private oTempTable
+    Private cNameTabTmp := ""
+    Private aRetTemp    := {} 
+    Private aResult     := {}
+    Private cArquivoE   := ""
+
+    // Criar arquivo de Perguntas, se ainda não existir
+    U_xPutSx1(cPerg,"01","Log na Pasta:","","","mv_ch01","C", 80       ,0,0,"G","",   "",,,"mv_par01",,,,,)    
+
+    Pergunte(cPerg,.f.)
+
+    // Interface de usuario
+    AADD(aSays,OemToAnsi( "Essa Rotina vai gerar os lançamentos de inventário (SB7) a partir" ) )
+    AADD(aSays,OemToAnsi( "de planilha fornecida pelo usuário." ) )
+
+    AADD(aButtons, { 5,.T.,{|| Pergunte(cPerg,.T. ) } } )
+    AADD(aButtons, { 1,.T.,{|| nOpca:= 1, If(Continua(cPerg),FechaBatch(), nOpca:=0 )}} )
+    AADD(aButtons, { 2,.T.,{|| FechaBatch() }} )
+
+    FormBatch( cCadastro, aSays, aButtons )
+	
+    If nOpca == 1
+
+        // Abrir a Planilha do Inventario.
+        cDirPlan := U_xLoadArq(".csv")
+
+        cDirErro := AllTrim(MV_PAR01)
+        cDirErro += IIF(Right(cDirErro,1)<>"\", "\","")
+
+        // Efetuar a leitura dos registros e a geracao da tabela temporia com os dados.
+        FWMsgRun(, {|oSay| aRetTemp := BuildTemp(oSay, cAliasPlan, cDirPlan) }, 'Proc. Arquivo CSV...' )
+
+        nQtdeRegs    := aRetTemp[01]
+        nQProdsBlock := aRetTemp[02]
+        nTotLidos    := aRetTemp[03] 
+        nSemSB2      := aRetTemp[04] 
+        nDuplicSB7   := aRetTemp[05]   
+        nSemSBE      := aRetTemp[06]    
+        aLogsE       := aRetTemp[07]     
+        nSemSB1      := aRetTemp[08]  
+        nSemArmazem  := aRetTemp[09]    
+        nEmpenhos    := aRetTemp[10]    
+        nReservas    := aRetTemp[11]    
+        nCustoNeg    := aRetTemp[12]  
+        nHaEnderecar := aRetTemp[13]  
+        nSaldoNeg    := aRetTemp[14]  
+        nQPreNotas   := aRetTemp[15]  
+        nErroNSerie  := aRetTemp[16]  
+        nQEndeNOk    := aRetTemp[17]  
+        nLoteNaoOk   := aRetTemp[18] 
+
+        // Gerar Log de Erros/Ocorrencias.
+        If Len(aLogsE) > 0
+            lProcessa := .F. 
+            For nI := 1 To Len(aLogsE)
+                For nX := 1 To Len(aLogsE[nI])
+                    Aadd(aLogAux, aLogsE[nI][nX])
+                Next nX
+                Aadd(aErrosLog, aLogAux)
+                aLogAux := {}
+            Next nI
+        EndIf
+
+        // Processamento Principal (So processar a planilha arquivo se nao houver qualquer erro)
+        If nQtdeRegs > 0 .AND. lProcessa 
+            FWMsgRun(, {|oSay| aResult := GeraSB7(oSay, cAliasPlan, nQtdeRegs, cDirErro) }, 'Gerando Inventário...' )
+            nRegInv    := aResult[1]
+            nRegNaoInv := aResult[2]
+        Else
+            ApMsgAlert("Não Existem Registros para o processamento. Verifique os parâmetros!", "InvZero.prw")
+        EndIf
+
+    EndIf
+
+    // Mensagem Final
+    If nQtdeRegs > 0 .And. nOpca == 1
+
+        cMsg := "Lidos..: ["+cValToChar(nTotLidos )+"] Registros da planilha  "+CRLF
+        cMsg += "Gerados: ["+cValToChar(nRegInv)+"] Registros no Inventário (SB7)"+CRLF
+        cMsg += "Errados: ["+cValToChar(nRegNaoInv)+"] Registros (Não Inventariados - Erros MsExecAuto)"+CRLF
+        cMsg += "Sem SB2: ["+cValToChar(nSemSB2   )+"] Registros Sem Saldos ou movimentações/Estoque"+CRLF
+        cMsg += "Lançamentos duplicados na SB7: ["+cValToChar(nDuplicSB7)+"]"+CRLF 
+        cMsg += "Sem Endereços na SBE.........: ["+cValToChar(nSemSBE   )+"]"+CRLF 
+        cMsg += "Produtos Bloqueados no Cadastro (SB1): "+cValToChar(nQProdsBlock)+CRLF
+        cMsg += "Produtos com Saldos Negativos........: "+cValToChar(nSaldoNeg   )+CRLF
+        cMsg += "Produtos com Custos Negativos........: "+cValToChar(nCustoNeg   )+CRLF
+        cMsg += "Produtos não Cadastrados ............: "+cValToChar(nSemSB1     )+CRLF
+        cMsg += "Produtos em Empenhos.................: "+cValToChar(nEmpenhos   )+CRLF
+        cMsg += "Produtos em Reservas.................: "+cValToChar(nReservas   )+CRLF
+
+        ApMsgAlert(cMsg, "Final InvPlan.prw")
+    
+    Else
+
+        ApMsgStop("Processamento Abortado ou não há registros no arquivo!", "Final InvPlan.prw")
+
+    EndIf
+
+    // Gravar o Log de Erros
+    If Len(aErrosLog) > 0
+        FWMsgRun(, {|oSay| cArquivoE := BuildLogE(oSay, cDirErro, aErrosLog, cDirPlan) }, 'Gerando Logs...' )
+    EndIf
+
+    // Eliminar a tabela provisoria.
+    If Select(cAliasPlan) > 0 
+	    oTempTable:Delete()
+    EndIf
+
+    // Fim
+    If nQtdeRegs > 0 .And. nOpca == 1
+        ApMsgInfo("Maiores detalhes nos Logs Gerados na Pasta: "+cDirErro, "InvPlan.prw (FIM)")
+    EndIf
+
+Return
+
+/*/{Protheus.doc} GeraSB7
+    (long_description)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 01/12/2021
+    @version 1.0
+    @param1 oSay      , Tipo Objeto   , Objeto com as mensagens a serem exibidas.
+    @param2 cAliasProd, Tipo Caractere, Alias da Query (Fonte dos dados) 
+    @param3 nQtdeRegs , Tipo Numerico , Qtde total de registros.
+    @param4 cDirErro  , Tipo Caractere, Diretorio onde ficaram gravados os logs gerados pela MsExecAuto.
+    @return NIL
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function GeraSB7(oSay, cAliasPlan, nQtdeRegs, cDirErro)
+
+    Local aRet         := {}
+    Local cFilCorrente := cFilAnt
+    Local aInvent      := {}
+    Local nErrados     := 0
+    Local nOk          := 0
+    Local nCount       := 0
+    Local cErroLog     := ""
+    
+    Private lMsErroAuto    := .F.
+    Private lAutoErrNoFile := .F.
+
+    DBSelectArea(cAliasPlan)
+    DbGoTop()
+
+    While !(cAliasPlan)->(Eof())
+
+        cFilAnt := (cAliasPlan)->B7_FILIAL
+
+        // Montar o Registro.
+        Aadd( aInvent, {"B7_FILIAL" , (cAliasPlan)->B7_FILIAL , NIL} )
+        Aadd( aInvent, {"B7_COD"    , (cAliasPlan)->B7_COD    , NIL} )
+        Aadd( aInvent, {"B7_LOCAL"  , (cAliasPlan)->B7_LOCAL  , NIL} )
+        Aadd( aInvent, {"B7_LOCALIZ", (cAliasPlan)->B7_LOCALIZ, NIL} )
+        Aadd( aInvent, {"B7_NUMSERI", (cAliasPlan)->B7_NUMSERI, NIL} )
+        Aadd( aInvent, {"B7_LOTECTL", (cAliasPlan)->B7_LOTECTL, NIL} )    
+        Aadd( aInvent, {"B7_QUANT"  , (cAliasPlan)->B7_QUANT  , NIL} )               
+        Aadd( aInvent, {"B7_DOC"    , (cAliasPlan)->B7_DOC    , NIL} )
+        Aadd( aInvent, {"B7_TIPO"   , (cAliasPlan)->B7_TIPO   , NIL} )            
+        Aadd( aInvent, {"B7_DATA"   , (cAliasPlan)->B7_DATA   , NIL} )
+        Aadd( aInvent, {"B7_DTVALID", (cAliasPlan)->B7_DTVALID, NIL} )
+        Aadd( aInvent, {"B7_ORIGEM" , (cAliasPlan)->B7_ORIGEM , NIL} )               
+        Aadd( aInvent, {"B7_STATUS" , (cAliasPlan)->B7_STATUS , NIL} )
+
+        lMsErroAuto := .F.
+
+        // Parametros: ( aInvent = Registro SB7; lContagem = .F. (Não gerar contagem), 3 = Incluir)
+        MsExecAuto({|a,b,c| MATA270(a,b,c)}, aInvent, .F., 3)
+
+        If lMsErroAuto
+            nErrados++ 
+            // Gravar Log na Pasta (C:\TEMP\) Por exemplo (a pasta ja devera existir) 
+            cErroLog       := "InvPlan_"+DtoS(Date())+"_"+Left(Time(),2)+"_"+SubStr(Time(),4,2)+"_"+Right(Time(),2)+".log"
+            lAutoErrNoFile :=  .F.
+            cDirErro       := AllTrim(cDirErro)+IIF(Right(AllTrim(cDirErro),1)<>"\", "\", "")
+            MostraErro(cDirErro, cErroLog)
+        Else
+            nOk++
+        Endif
+
+        // Apresenta a indicacao de progresso/processamento.
+        nCount++
+        oSay:cCaption := ('Procs/Total '+cValToChar(nCount)+"/"+cValToChar(nQtdeRegs))
+        ProcessMessages()
+
+        // Limpar o Array de Registros.
+        aInvent := {}
+
+        // Ir para o proximo registro da tabela temporia (Lidos e gravados a partir da planilha/csv.)
+        dbSelectArea(cAliasPlan)
+        (cAliasPlan)->(DbSkip())
+
+    EndDo
+
+    // Restaurar a Filial
+    cFilAnt := cFilCorrente
+
+    // Retorno
+    aRet := { nOk, nErrados }
+ 
+Return(aRet) 
+
+/*/{Protheus.doc} IncluiSBE
+    (Verificar se Existe o Endereco no Protheus (Tabela SBE), senao incluir para evitar erro na MsExecAuto.)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 03/12/2021
+    @version 1.0
+    @param1 xFilial  , Tipo Caractere, Filial
+    @param2 cProduto , Tipo Caractere, Codigo do Produto
+    @param3 cArmazem , Tipo Caractere, Local/Armazem
+    @param4 cEndereco, Tipo Caractere, Localizacao/Endereco
+    @param5 nQuant   , Tipo Numerico , Quantidade
+    @return lRet, Tipo Logico, Se existe ou nao o endereco
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+
+Static Function IncluiSBE(xFilial, cProduto, cArmazem, cEndereco, nQuant)
+    
+    Local lRet   := .F.
+    Local aArea  := GetArea()
+
+    DbSelectArea("SBE")
+    DbSetOrder(10) // BE_FILIAL+BE_CODPRO+BE_LOCAL+BE_LOCALIZ                                                                                                                         
+    If !DbSeek(xFilial+cProduto+cArmazem+cEndereco)
+        lRet    := .T.
+        RecLock("SBE", .T.)
+        SBE->BE_FILIAL  := xFilial
+        SBE->BE_CODPRO  := cProduto
+        SBE->BE_LOCAL   := cArmazem
+        SBE->BE_LOCALIZ := cEndereco
+        SBE->BE_CAPACID := nQuant
+        SBE->BE_STATUS  := "1" 
+        SBE->BE_DESCRIC := "INCLUIDO INVENTARIO"
+        SBE->BE_PRIOR   := "ZZZ"
+        MsUnLock() 
+    EndIf
+
+    RestArea(aArea)
+
+Return(lRet)
+
+/*/{Protheus.doc} ExistSB1
+    (Verificar se o Produto existe ou nao na tabela de Produtos (SB1) - Modo Compartilhado na Vogel)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 04/12/2021
+    @version 1.0
+    @param cChaveSB1, Tipo Caractere, Filial + Codigo do Produto
+    @return lRet, Tipo Logico, Indica se o produto existe ou nao na SB1
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function ExistSB1(cChaveSB1)
+
+    Local lRet     := .F.
+    Local aArea    := GetArea()
+    Local aAreaSB1 := SB1->(GetArea())
+
+    dbSelectArea("SB1")
+    dbSetOrder(1)
+    If DbSeek(cChaveSB1)    // B1_FILIAL+B1_COD
+        lRet := .T.
+    EndIf
+
+    RestArea(aAreaSB1)
+    RestArea(aArea)
+    
+Return(lRet) 
+
+
+/*/{Protheus.doc} ExistNNR
+    (Validar a Existencia do Local/Armazem)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 05/12/2021
+    @version 1.0
+    @param1 cLocal , Tipo Caractere, Almoxarifado/Local.
+    @return lRet   , Tipo Logico   , Indica se existe o almoxarifado
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function ExistNNR(cLocal)
+
+    Local lRet        := .F.
+    Local aArea       := GetArea()
+    Local cAliasNNR   := "QNNR"
+	Local cQuery      := ""
+
+    cQuery := "SELECT NNR_FILIAL, NNR_CODIGO, NNR_DESCRI  "+CRLF
+    cQuery += "FROM "+RetSQLName("NNR")+" NNR             "+CRLF
+    cQuery += "WHERE NNR.D_E_L_E_T_ = ''                  "+CRLF
+    cQuery += "AND NNR_FILIAL = '"+xFilial("NNR")+"'      "+CRLF
+    cQuery += "AND NNR_CODIGO = '"+cLocal+"'              "+CRLF
+
+    If Select(cAliasNNR)<>0
+         (cAliasNNR)->(dbCloseArea())
+    Endif
+    
+    dbUseArea(.T.,"TOPCONN",TCGenQry(,,cQuery),cAliasNNR,.F.,.T.)
+
+    If !(cAliasNNR)->(Eof())
+        lRet := .T.
+    EndIf
+
+    (cAliasNNR)->(dbCloseArea())
+    RestArea(aArea)
+    
+Return(lRet) 
+
+/*/{Protheus.doc} ExistSB7
+    (long_description)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 02/12/2021
+    @version 1.0
+    @param param_name, param_type, param_descr
+    @return return_var, return_type, return_description
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function ExistSB7(cProduto, cLocal, cTipo, cDocumento, dDataB, cOrigem, cNumSerie, cLote, cEndereco)
+
+    Local lRet        := .F.
+    Local aArea       := GetArea()
+    Local cAliasSB7   := "QSB7"
+	Local cQuery      := ""
+
+    // Query Principal
+    cQuery := "SELECT B7_FILIAL, B7_COD, B7_LOCAL, B7_TIPO, B7_DOC, B7_DATA, B7_ORIGEM "+CRLF
+    cQuery += "FROM "+RetSQLName("SB7")+" SB7                                          "+CRLF 
+    cQuery += "WHERE SB7.D_E_L_E_T_ = ''                                               "+CRLF
+    cQuery += "AND B7_FILIAL = '"+xFilial("SB7")+"'                                    "+CRLF
+    cQuery += "AND B7_COD    = '"+AllTrim(cProduto)+"'                                 "+CRLF
+    cQuery += "AND B7_TIPO   = '"+cTipo+"'                                             "+CRLF
+    cQuery += "AND B7_LOCAL  = '"+cLocal+"'                                            "+CRLF
+    cQuery += "AND B7_DOC    = '"+cDocumento+"'                                        "+CRLF
+    cQuery += "AND B7_DATA   = '"+DTOS(dDataB)+"'                                      "+CRLF
+    cQuery += "AND B7_ORIGEM = '"+cOrigem+"'                                           "+CRLF       
+    cQuery += "AND B7_NUMSERI = '"+AllTrim(cNumSerie)+"'                               "+CRLF
+    cQuery += "AND B7_LOTECTL = '"+AllTrim(cLote)+"'                                   "+CRLF
+    cQuery += "AND B7_LOCALIZ = '"+AllTrim(cEndereco)+"'                               "+CRLF
+
+    If Select(cAliasSB7)<>0
+         (cAliasSB7)->(dbCloseArea())
+    Endif
+    
+    dbUseArea(.T.,"TOPCONN",TCGenQry(,,cQuery),cAliasSB7,.F.,.T.)
+
+    If !(cAliasSB7)->(Eof())
+        lRet := .T.
+    EndIf
+
+    (cAliasSB7)->(dbCloseArea())
+    
+    RestArea(aArea)
+
+Return(lRet)
+
+/*/{Protheus.doc} ExistSB2
+    (long_description)
+    @type  Static Function
+    @author user
+    @since 02/12/2021
+    @version version
+    @param1 cProduto, Tipo Caractere, Codigo do Produto
+    @param2 cLocal  , Tipo Caractere, Armazem/Local
+    @return lRet    , Tipo Logico   , Se o produto+local existem na SB2 (Saldos em Estoque)
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function ExistSB2(cProduto, cLocal)
+
+    Local lRet       := .F.
+    Local aArea      := GetArea()
+    Local aAreaSB2   := SB2->(GetArea())
+    Local nTamProd   := TamSX3("B2_COD")[1]
+    Local nTamLocal  := TamSX3("B2_LOCAL")[1]
+
+
+    dbSelectArea("SB2")
+    dbSetOrder(1)
+    If DbSeek(xFilial("SB2")+PADR(AllTrim(cProduto), nTamProd)+PADR(AllTrim(cLocal), nTamLocal))    //B2_FILIAL+B2_COD+B2_LOCAL         
+        lRet := .T.
+    EndIf
+
+    RestArea(aAreaSB2)
+    RestArea(aArea)
+
+Return(lRet)
+
+/*/{Protheus.doc} ExistSBE
+    (Verificar se Existe o Endereco no Protheus (Tabela SBE).
+    @type  Static Function
+    @author Sergio Silveira
+    @since 03/12/2021
+    @version 1.0
+    @param1 cArmazem , Tipo Caractere, Local/Armazem
+    @param2 cEndereco, Tipo Caractere, Localizacao/Endereco
+    @return lRet, Tipo Logico, Se existe ou nao o endereco
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+
+Static Function ExistSBE(cArmazem, cEndereco)
+    
+    Local lRet       := .F.
+    Local aArea      := GetArea()
+    Local nTamLocal  := TamSX3("BE_LOCAL"  )[1]
+	Local nTamEnd    := TamSX3("BE_LOCALIZ")[1]
+	
+	// Formatar os campos da chave
+	cArmazem  := PADR(AllTrim(cArmazem) , nTamLocal)  
+	cEndereco := PADR(AllTrim(cEndereco), nTamEnd  )  
+
+    DbSelectArea("SBE")
+    DbSetOrder(1) // BE_FILIAL+BE_LOCAL+BE_LOCALIZ+BE_ESTFIS                                                                                                                         
+    If DbSeek(xFilial("SBE")+cArmazem+cEndereco)
+        lRet  := .T.
+    EndIf
+
+    RestArea(aArea)
+
+Return(lRet)
+
+/*/{Protheus.doc} ValidSerie
+    (long_description)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 07/12/2021
+    @version 1.0
+    @param1 cNumSerie  , Tipo Caractere, Numero de Serie do Produto
+    @param2 nQuant     , Tipo Numerico , Qtde Inventariada (Subiu do arquivo CSV)
+    @param3 cUsaLocaliz, Tipo Caractere, B1_RASTRO - L = lOTE; S = Subloete; N = Nao usa.
+    @return aRet, Tipo Array, { Flag*, lOkQtdSerie }
+    @example
+    
+    *Flag := 0 - 0k; 
+             1 - Nao Utiliza Num Serie, mas foi Informado (B1_LOCALIZ<>"S")
+             2 - Utiliza Num Serie, mas, nao foi informado (B1_LOCALIZ="S") 
+
+    @see (links_or_references)
+    /*/
+Static Function ValidSerie(cNumSerie, nQuant, cUsaLocaliz)
+
+    Local aRet        := {}
+    Local nOkNumSerie := 0 
+    Local lOkQtdSerie := .T.
+
+    If cUsaLocaliz == "S"
+
+        If !Empty(cNumSerie) 
+            nOkNumSerie := 0    // 0 - Ok
+            lOkQtdSerie := IIF(nQuant==1, .T., .F.)
+        Else
+            nOkNumSerie := 0   // Nao e so porque tem controle de localizacao que o numero de serie sera obrigatorio //2    // 2-  Utiliza Num Serie, mas, nao foi informado (B1_LOCALIZ="S") 
+        EndIf
+
+    Else
+
+        If !Empty(cNumSerie) 
+            nOkNumSerie := 1    // 1 - Nao Utiliza Num Serie, mas foi Informado (B1_LOCALIZ<>"S")
+        Else
+            nOkNumSerie := 0    // 0 - Ok
+        EndIf
+
+    EndIf
+
+    // Retorno.
+    aRet := { nOkNumSerie, lOkQtdSerie }
+
+Return(aRet)
+
+/*/{Protheus.doc} ValidSB2
+    (Validar a existencia de reservas ou empenhos para os Produtos Inventariados; 
+     Validar a existencia de documentos de entrada com pendencia de saldos a enderecar;
+     Validar a existência de produtos com saldo ou custo negativo )
+    @type  Static Function
+    @author Sergio Silveira
+    @since 05/12/2021
+    @version 1.0
+    @param1 cProduto   , Tipo Caractere, Codigo do Produto
+    @param2 cArmazem   , Tipo Caractere, Armazem/Local
+    @param3 cEndereco  , Tipo Caractere, Endereco/Localizao
+    @return aRet       , Tipo Array, { lExistRes, lExistEmp, Custo Medio, Qtde a Enderecar, Saldo em Estoque }
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function ValidSB2(cProduto, cArmazem, cEndereco)
+
+    Local aRet         := {}
+    Local aArea        := GetArea()
+    Local lExistRes    := .F. 
+    Local lExistEmp    := .F.
+    Local lHaEnderecar := .F.
+    Local lHaCustoNeg  := .F.
+    Local lHaSaldoNeg  := .F.
+    Local nSaldoProd   := 0
+    Local nTamProd     := TamSX3("B2_COD")[1]
+    Local aCposSB2     := { "B2_CM1", "B2_RESERVA", "B2_QEMP", "B2_QACLASS" }
+    Local aRetSB2      := {}
+    Local lExistSB2    := ExistSB2(cProduto, cArmazem)
+
+    If lExistSB2
+
+        aRetSB2  := GetAdvFVal( "SB2" , aCposSB2, xFilial("SB2")+PADR(AllTrim(cProduto), nTamProd)+cArmazem, 1, { 0, 0, 0, 0 } )   
+
+        // Verificar se ha Reservas
+        If aRetSB2[B2RESERVA] > 0
+            lExistRes := .T.
+        EndIf
+
+        // Verificar se ha Empenhos
+        If aRetSB2[B2QEMP] > 0
+            lExistEmp := .T.
+        EndIf
+
+        // Verificar se o Custo esta negativo
+        If aRetSB2[B2CM1] < 0
+            lHaCustoNeg := .T.
+        EndIf
+
+        // Verificar se ha NFs com Produtos a Enderecar
+        If aRetSB2[B2QACLASS] > 0
+            lHaEnderecar := .T.
+        EndIf
+
+        // Obter o Saldo do Produto
+        dbSelectArea("SB2") 
+        dbSetOrder(1) 
+        If dbSeek(xFilial("SB2")+PADR(AllTrim(cProduto), nTamProd)+cArmazem) 
+            nSaldoProd := SaldoSB2() 
+        EndIf
+
+        // Verificar se o Saldo esta Negativo
+        If nSaldoProd < 0
+            lHaSaldoNeg := .T.
+        EndIf
+
+    Else
+
+        // Se nao existir o SB2, nao validar, trata-se de Almoxarifado Novo.
+        lExistRes    := .F.
+        lExistEmp    := .F.
+        lHaCustoNeg  := .F.
+        lHaEnderecar := .F.
+        lHaSaldoNeg  := .F.
+
+    EndIf
+
+    // Retorno
+    aRet := { lExistRes, lExistEmp, lHaCustoNeg, lHaEnderecar, lHaSaldoNeg }
+
+    RestArea(aArea)
+
+Return(aRet)                
+
+/*/{Protheus.doc} ChkUsaSerie
+    (Identificar se o produto utiliza numero de serie)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 05/12/2021
+    @version 1.0
+    @param1 cProduto   , Tipo Caractere, Codigo do Produto
+    @param2 cArmazem   , Tipo Caractere, Armazem/Local
+    @param3 cEndereco  , Tipo Caractere, Endereco/Localizao
+    @return lRet       , Tipo Logico   , Se o numero de Serie existe no ERP.
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function ChkUsaSerie(cProduto, cArmazem, cEndereco)
+
+    Local lRet        := .F.
+    Local aArea       := GetArea()
+    Local cAliasSDB   := "QSDB"
+	Local cQuery      := ""
+
+    // Query Principal
+    cQuery += "SELECT COUNT(1) AS QSERIE                                      "+CRLF 
+    cQuery += "FROM                                                           "+CRLF 
+    cQuery += "(                                                              "+CRLF 
+    cQuery += "SELECT DB_FILIAL, DB_PRODUTO, DB_LOCAL, DB_LOCALIZ, DB_NUMSERI "+CRLF
+    cQuery += "FROM "+RetSQLName("SDB")+" SDB                                 "+CRLF 
+    cQuery += "WHERE SDB.D_E_L_E_T_ = ''                                      "+CRLF 
+    cQuery += "AND DB_FILIAL   = '"+xFilial("SDB")+"'                         "+CRLF 
+    cQuery += "AND DB_PRODUTO  = '"+cProduto+"'                               "+CRLF 
+    cQuery += "AND DB_NUMSERI  <> ''                                          "+CRLF            
+    cQuery += ") AS ExistSerie                                                "+CRLF  
+
+    If Select(cAliasSDB)<>0
+         (cAliasSDB)->(dbCloseArea())
+    Endif
+    
+    dbUseArea(.T.,"TOPCONN",TCGenQry(,,cQuery),cAliasSDB,.F.,.T.)
+
+    If !(cAliasSDB)->(Eof()) .And. (cAliasSDB)->QSERIE > 0 
+        lRet := .T.
+    EndIf
+
+    (cAliasSDB)->(dbCloseArea())
+    
+    RestArea(aArea)
+
+Return(lRet)
+
+/*/{Protheus.doc} ValidNSerie
+    (Identificar a existencia de um numero de serie especifico.)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 05/12/2021
+    @version 1.0
+    @param1 cProduto   , Tipo Caractere, Codigo do Produto
+    @param2 cArmazem   , Tipo Caractere, Armazem/Local
+    @param3 cEndereco  , Tipo Caractere, Endereco/Localizao
+    @param4 cNumSerie  , Tipo Caractere, Numero de Serie do Produto
+    @return lRet       , Tipo Logico   , Se o numero de Serie existe no ERP.
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function ValidNSerie(cProduto, cArmazem, cEndereco, cNumSerie)
+
+    Local lRet        := .F.
+    Local aArea       := GetArea()
+    Local cAliasSDB   := "QSDB"
+	Local cQuery      := ""
+
+    // Query Principal
+    cQuery := "SELECT DB_FILIAL, DB_PRODUTO, DB_LOCAL, DB_LOCALIZ, DB_NUMSERI "+CRLF
+    cQuery += "FROM "+RetSQLName("SDB")+" SDB                                 "+CRLF 
+    cQuery += "WHERE SDB.D_E_L_E_T_ = ''                                      "+CRLF 
+    cQuery += "AND DB_FILIAL   = '"+xFilial("SDB")+"'                         "+CRLF 
+    cQuery += "AND DB_PRODUTO  = '"+cProduto+"'                               "+CRLF 
+    cQuery += "AND DB_LOCAL    = '"+cArmazem+"'                               "+CRLF 
+    cQuery += "AND DB_LOCALIZ  = '"+cEndereco+"'                              "+CRLF 
+    cQuery += "AND DB_NUMSERI  = '"+cNumSerie+"'                              "+CRLF            
+
+    If Select(cAliasSDB)<>0
+         (cAliasSDB)->(dbCloseArea())
+    Endif
+    
+    dbUseArea(.T.,"TOPCONN",TCGenQry(,,cQuery),cAliasSDB,.F.,.T.)
+
+    If !(cAliasSDB)->(Eof())
+        lRet := .T.
+    EndIf
+
+    (cAliasSDB)->(dbCloseArea())
+    
+    RestArea(aArea)
+
+Return(lRet)
+
+/*/{Protheus.doc} ExistPNF
+    (alidar a existencia de pre notas de entrada com pendencia de Classificacao Fiscal.)
+    @type  Static Function
+    @author user
+    @since 06/12/2021
+    @version version
+    @param1 cProduto   , Tipo Caractere, Codigo do Produto
+    @param2 cLocal     , Tipo Caractere, Armazem/Local
+    @return lRet       , Tipo Logico   , 
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function ExistPNF(cProduto, cLocal)
+
+    Local lRet      := .F.
+    Local aArea     := GetArea()
+    Local cAliasPNF := "QSD1"
+	Local cQuery    := ""
+
+    // Query Principal
+    cQuery += "SELECT COUNT(1) AS QPreNotas                                                             "+CRLF
+    cQuery += "FROM (                                                                                   "+CRLF
+    cQuery += "SELECT D1_FILIAL, D1_DOC, F1_EMISSAO, F1_DTDIGIT, D1_COD, D1_LOCAL, D1_LOTECTL, D1_QUANT "+CRLF  
+    cQuery += "FROM "+RetSQLName("SF1")+" SF1                                                           "+CRLF     
+    cQuery += "INNER JOIN "+RetSQLName("SD1")+" SD1                                                     "+CRLF     
+    cQuery += "ON                                                                                       "+CRLF
+    cQuery += "    D1_FILIAL  = '"+xFilial("SD1")+"'                                                    "+CRLF                                             
+    cQuery += "AND D1_DOC     = F1_DOC                                                                  "+CRLF                                                      
+    cQuery += "AND D1_SERIE   = F1_SERIE                                                                "+CRLF
+    cQuery += "AND D1_FORNECE = F1_FORNECE                                                              "+CRLF
+    cQuery += "AND D1_LOJA    = F1_LOJA                                                                 "+CRLF
+    cQuery += "AND D1_TIPO    = F1_TIPO                                                                 "+CRLF
+    cQuery += "AND SD1.D_E_L_E_T_ = ''                                                                  "+CRLF
+    cQuery += "WHERE SF1.D_E_L_E_T_ = ''                                                                "+CRLF
+    cQuery += "AND F1_FILIAL  = '"+xFilial("SF1")+"'                                                    "+CRLF
+    cQuery += "AND D1_COD     = '"+cProduto+"'                                                          "+CRLF 
+    cQuery += "AND D1_LOCAL   = '"+cLocal+"'                                                            "+CRLF
+    cQuery += "AND F1_VALMERC = 0                                                                       "+CRLF
+    cQuery += "AND F1_VALBRUT = 0                                                                       "+CRLF
+    cQuery += ") AS ExistPNF                                                                            "+CRLF
+
+    If Select(cAliasPNF)<>0
+         (cAliasPNF)->(dbCloseArea())
+    Endif
+    
+    dbUseArea(.T.,"TOPCONN",TCGenQry(,,cQuery),cAliasPNF,.F.,.T.)
+
+    If !(cAliasPNF)->(Eof()) .And. (cAliasPNF)->QPreNotas > 0
+        lRet := .T.
+    EndIf
+
+    (cAliasPNF)->(dbCloseArea())
+
+    RestArea(aArea)
+
+Return(lRet)
+
+/*/{Protheus.doc} ValRSB1SBE
+    (Validar a existencia dos enderecos inventariados; 
+     Validar a Parametrizacao do cadastro de Produtos quanto aos controles de Endereco, Lote)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 06/12/2021
+    @version 1.0 
+    @param1 cUsaLocaliz, Tipo Caractere, Usa a localizacao
+    @param2 cProduto   , Tipo Caractere, Codigo do Produto
+    @param3 cArmazem   , Tipo Caractere, Armazem/Local
+    @param4 cEndereco  , Tipo Caractere, Endereco/Localizao
+    @return aRet       , Tipo Array    , { lExistSBE, nRastroOk }
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function ValRSB1SBE(cUsaLocaliz, cProduto, cArmazem, cEndereco)
+ 
+    Local aRet        := {}
+    Local lExistSBE   := .F.
+    Local nLocalizaOk := 9     // Em casos de erros indeterminados...
+
+    If cUsaLocaliz == "S"
+        If !Empty(cEndereco)  
+            lExistSBE := ExistSBE(cArmazem, cEndereco)  // Obrigatoria a existencia da SBE, mesmo para um Armazem novo.
+            nLocalizaOk := 0
+        Else
+            nLocalizaOk := 1  // 1 - Produto usa localização (B1_LOCALIZ), mas, nao foi informado o Endereço.
+        EndIf    
+    Else
+        lExistSBE := .T.    // Assume verdadeiro porque o lote nao sendo exigido, nao gerara erro na validacao de lote.
+        If !Empty(cEndereco)  
+            nLocalizaOk := 2  // Produto nao usa Localização (B1_LOCALIZ), mas, o Endereço foi indevidamente informado.
+        Else    
+            nLocalizaOk := 0  // Produto nao usa localizacoa e sem Endereco informado. Ok
+        EndIf    
+    EndIf        
+
+    // Retorno
+    aRet := { lExistSBE, nLocalizaOk }
+
+Return(aRet)
+
+/*/{Protheus.doc} VerRastro
+    (long_description)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 08/12/2021
+    @version version
+    @param param_name, param_type, param_descr
+    @return return_var, return_type, return_description
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function VerRastro(cProdRastro, cLote)
+
+    Local aRet    := {}
+    Local lRet    := .T.
+    Local nMsg    := 0
+
+    If cProdRastro == "L" .AND. !Empty(cLote)
+        lRet := .T.
+        nMsg := 0
+    ElseIf cProdRastro == "L" .AND. Empty(cLote)
+        lRet := .F.
+        nMsg := 1     // "Produto com controle de Lote, mas, Não foi informado.
+    ElseIf cProdRastro <> "L" .AND. Empty(cLote)
+        lRet := .T.
+        nMsg := 0
+    ElseIf cProdRastro <> "L" .AND. !Empty(cLote) 
+        lRet := .F.
+        nMsg := 2     // "Produto Sem controle de Lote, mas, Foi informado.
+    EndIf
+        
+    // Retorno
+    aRet := { lRet, nMsg }
+
+Return(aRet)
+
+/*/{Protheus.doc} BuildTemp
+    (Efetuar a leitura dos dados da planilha e partir deles, gravar em tabela temporaria
+    @type  Static Function
+    @author Sergio Silveira
+    @since 07/12/2021
+    @version 1.0
+    @param1 oSay      , Tipo Objeto   , Objeto com as mensagens a serem exibidas.
+    @param2 cAliasPlan, Tipo Caractere, Alias da Query Principal.
+    @param3 cDirPlan  , Tipo Caractere, Diretorio + Nome do Arquivo .CSV (Planilha)
+    @return aRet      , Tipo Array    , { Qtde de Regstros Gravaos, Qtde de Registros Bloqueados, Qtde de Produtos Bloqueados }.
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function BuildTemp(oSay, cAliasPlan, cDirPlan)
+
+    Local cFilCorrente:= cFilAnt
+    Local aRet        := {}
+    Local nRegsRec    := 0
+    Local nProdBlocks := 0
+    Local nTotLidos   := 0
+    Local nSemSB2     := 0
+    Local nSemSBE     := 0
+    Local nDuplicSB7  := 0
+    Local nLin        := 0
+    Local cValidLin   := "Filial;Produto;Armazem;Descricao;Endereco;Num de Serie;Lote;Qtde RGIS;Custo;Unidade"
+    Local nColsTxt    := 83
+    Local cBuffer     := ""
+    Local aLidosCSV   := {}
+    Local aDadosCSV   := {}
+    Local aLinhaCSV   := {}
+    Local aData       := {}
+    Local lProc       := .T.
+    Local nI          := 0
+    Local cMsg        := ""
+    Local cDocumento  := DTOS(ddatabase)
+    Local cTipo       := ""
+    Local cProdBlock  := ""
+    Local cProdRastro := ""
+    Local cProdCEnd   := ""
+    Local aCposSB1    := { "B1_TIPO", "B1_MSBLQL", "B1_RASTRO", "B1_LOCALIZ" }
+    Local aRetCposSB1 := {}
+    Local aRetSB2     := {}
+    Local lExistRes   := .F.
+    Local lExistEmp   := .F.
+    Local lExistSB2   := .F.
+    Local lExistSB7   := .F.
+    Local lExistSB1   := .F.
+    Local lExistSBE   := .F.
+    Local lExistLocal := .F.
+    Local nOkNumSerie := 0
+    Local aRetNumSerie:= {}
+    Local aLogsE      := {}
+    Local cMsgErro    := ""
+    Local lHaCustoNeg := .F. 
+    Local lHaEnderecar:= .F. 
+    Local lHaSaldoNeg := .F. 
+    Local lExistPNF   := .F.
+    Local nSemSB1     := 0
+    Local nSemArmazem := 0
+    Local nEmpenhos   := 0
+    Local nReservas   := 0
+    Local nCustoNeg   := 0
+    Local nHaEnderecar:= 0
+    Local nSaldoNeg   := 0
+    Local nQPreNotas  := 0
+    Local nErroNSerie := 0
+    Local nQEndeNOk    := 0
+    Local nLoteNaoOk  := 0
+    Local lLoteOk     := .F.
+    Local cUsaLocaliz := ""
+    Local aEndereSBE  := {}
+    Local nEndereOk   := 0
+    Local aRetLote    := {}
+    Local nMsgLote    := 0
+    Local aStructSB7  := SB7->(DbStruct())
+    Local aCposTRB    := {}
+    Local cCampo      := ""
+    Local nX          := 0
+
+    // Criar a tabela temporaria para os registros importados da planilha.
+    oTempTable := FWTemporaryTable():New( cAliasPlan )
+    oTemptable:SetFields( aStructSB7 )
+    oTempTable:AddIndex( "01", { 'B7_FILIAL', 'B7_COD', 'B7_LOCAL', 'B7_LOCALIZ' } )                                                                                                                                     
+    oTempTable:Create()
+        
+    cNameTabTmp := oTempTable:GetRealName() 
+
+    //--------------------------------------------------+
+    // Abertura do arquivo .csv                         |
+    //--------------------------------------------------+
+    FT_FUSE(cDirPlan)            
+    nTotLidos := FT_FLASTREC()-1   // Descarta a contagem do cabec do arquivo.
+    FT_FGOTOP()
+
+    //--------------------------------------------------+
+    // Processamento Principal                          |
+    //--------------------------------------------------+
+    While !FT_FEOF() 
+
+        nLin++
+        oSay:cCaption := ('Lidos/Total '+cValToChar(nLin)+"/"+cValToChar(nTotLidos))
+        ProcessMessages()
+
+        //-------------------------------------+
+        // Efetua a Leitura da Linha           |                                  
+        //-------------------------------------+
+        cBuffer   := FT_FREADLN()
+
+        //-------------------------------------+
+        // Primeira linha Valida a planilha    |
+        //-------------------------------------+	
+        If nLin == 1
+            If SubString(AllTrim(cBuffer),1,nColsTxt) <> cValidLin     
+                cMsg := "O arquivo .csv não possui a estrutura de colunas correta. Por favor, verifique!"    
+                ApMsgStop(cMsg, "InvPlan.prw")
+                lProc := .F.
+                Exit   
+            Else
+                cBuffer := ""
+                FT_FSKIP()
+                Loop            
+            EndIf
+        EndIf
+
+        //-------------------------------------+
+        // Obtem os dados do Arquivo CSV       |
+        //-------------------------------------+      
+        aLidosCSV  := LerCSV(cBuffer)
+        Aadd(aDadosCSV, BuildDataCSV(aLidosCSV))   
+    
+        //-----------------------------------------------------+       
+        // Vai para a proxima linha do arquivo!                |
+        //-----------------------------------------------------+       
+        FT_FSKIP()    
+
+    EndDo
+
+    //-----------------------------------------+
+    // Fecha o arquivo aberto por FT_FUSE()    |
+    //-----------------------------------------+
+    FT_FUSE()     
+
+    //-----------------------------------------------------------+
+    // Processa o Array de Linhas lidas a partir do arquivo .csv |
+    //-----------------------------------------------------------+  
+    If lProc
+
+        For nI := 1 To Len(aDadosCSV)
+
+            oSay:cCaption := ('Recs/Total '+cValToChar(nI)+"/"+cValToChar(nTotLidos))
+            ProcessMessages()
+
+            //-------------------------------------+
+            // Recupera os dados a partir do       |
+            // array da estrutura, linha a linha.  |
+            //-------------------------------------+
+            aLinhaCSV := Aclone(aDadosCSV[nI])      
+
+            //-------------------------------------+
+            // Converte a Linha para sua gravacao  |
+            // na Temporaria.                      |
+            //-------------------------------------+
+            aData  := Aclone(ChangData(aLinhaCSV))
+
+            //-----------------------------------------------------------------------------+
+            // Definir a Filial de Trabalho, de acordo com a filial que subiu da planilha. | 
+            //-----------------------------------------------------------------------------+
+            cFilAnt := aData[B7FILIAL]
+
+            //------------------------------------------------------+
+            // Validacoes preliminares para gravacao dos registros. |
+            //------------------------------------------------------+
+
+            // a. Validar a existencia dos codigos de produtos inventariados.
+            lExistSB1    := ExistSB1(xFilial("SB1")+aData[B7COD])
+
+            // Validar a Existencia do Local/Armazem
+            lExistLocal  := ExistNNR(aData[B7LOCAL])
+
+            If lExistSB1 .And. lExistLocal
+
+                aRetCposSB1  := GetAdvFVal("SB1", aCposSB1, xFilial("SB1")+aData[B7COD],1)
+                cTipo        := aRetCposSB1[1]
+                cProdBlock   := aRetCposSB1[2]
+                cProdRastro  := aRetCposSB1[3] 
+                cProdCEnd    := aRetCposSB1[4]  
+                cUsaLocaliz  := cProdCEnd
+
+                // Verificar se ha Controle de Lote e o Lote foi informado e vice-versa!
+                aRetLote     := VerRastro(cProdRastro, aData[B7LOTECTL])
+                lLoteOk      := aRetLote[1]
+                nMsgLote     := aRetLote[2]
+
+                lExistSB2    := .T.   // ExistSB2(aData[B7COD], aData[B7LOCAL])    // Retirada porque sera inventariado num armazem nov0 - Anderson e Angelica 07/12/2021.
+                lExistSB7    := ExistSB7(aData[B7COD], aData[B7LOCAL], cTipo, cDocumento, ddatabase, "MATA270", aData[B7NUMSERI], aData[B7LOTECTL], aData[B7LOCALIZ])
+                // c.1. Validar a Parametrizacao do cadastro de Produtos quanto ao Numero de Serie
+                aRetNumSerie := ValidSerie(aData[B7NUMSERI], aData[B7QUANT], cUsaLocaliz)
+                nOkNumSerie  := aRetNumSerie[1]  //  0 - 0k; 
+                                                 //  1 - Nao Utiliza Num Serie, mas foi Informado (B1_LOCALIZ<>"S");
+                                                 //  2 - Utiliza Num Serie e nao foi informado (B1_LOCALIZ="S"). 
+                lOkQtdSerie  := aRetNumSerie[2]
+
+                // b. Validar a existencia dos enderecos inventariados e
+                // c.2. Validar a Parametrizacao do cadastro de Produtos quanto aos controles de Endereco e Lote.
+                aEndereSBE := ValRSB1SBE(cUsaLocaliz, aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ])
+                lExistSBE  := aEndereSBE[1]
+                nEndereOk  := aEndereSBE[2] 
+
+                // e. Validar a existencia de pre notas de entrada com pendencia de Classificacao Fiscal.
+                lExistPNF  := ExistPNF(aData[B7COD], aData[B7LOCAL])
+
+                // d. Validar a existencia de reservas ou empenhos para os Produtos Inventariados
+                // f. Validar a existencia de documentos de entrada com pendencia de saldos a enderecar
+                // g. Validar a existencia de produtos com saldo ou custo negativo 
+                aRetSB2      := ValidSB2(aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ])
+                lExistRes    := aRetSB2[1]
+                lExistEmp    := aRetSB2[2]
+                lHaCustoNeg  := aRetSB2[3]
+                lHaEnderecar := aRetSB2[4] 
+                lHaSaldoNeg  := aRetSB2[5]  
+
+                //---------------------------------------------------------------------------------------------------+
+                // So Processar Produtos nao bloqueados, com SB2 e com lancamentos nao duplicados na SB7/Inventario. |
+                //---------------------------------------------------------------------------------------------------+
+                If cProdBlock <> "1" .And. lExistSB2 .And. !lExistSB7 .And. lExistSBE .And. nEndereOk == 0 .And. nOkNumSerie == 0 .And. lOkQtdSerie .And. !lExistRes .And. !lExistEmp .And. !lHaCustoNeg .And. !lHaEnderecar .And. !lHaSaldoNeg .And. !lExistPNF .And. lLoteOk
+
+                    // Registros Incluidos.
+                    nRegsRec++
+
+                    // Gerar o Inventario na SB7.
+                    //aRetInvent := RecInvent(aData, cDocumento, cTipo, cDirErro)
+                    //nOk      += aRetInvent[1]
+                    //nErrados += aRetInvent[2]
+
+                    // Montar o Array com os campos a serem gravados na Temp.
+                    aCposTRB := {   { "B7_FILIAL" ,  aData[B7FILIAL ]           }, ;
+                                    { "B7_COD"    ,  aData[B7COD    ]           }, ;
+                                    { "B7_LOCAL"  ,  aData[B7LOCAL  ]           }, ;
+                                    { "B7_LOCALIZ",  aData[B7LOCALIZ]           }, ;
+                                    { "B7_NUMSERI",  aData[B7NUMSERI]           }, ;
+                                    { "B7_LOTECTL",  aData[B7LOTECTL]           }, ;
+                                    { "B7_QUANT"  ,  aData[B7QUANT  ]           }, ;
+                                    { "B7_DOC"    ,  cDocumento                 }, ;
+                                    { "B7_TIPO"   ,  cTipo                      }, ;
+                                    { "B7_DATA"   ,  ddatabase                  }, ;
+                                    { "B7_DTVALID",  ddatabase                  }, ;
+                                    { "B7_ORIGEM" ,  "MATA270"                  }, ;
+                                    { "B7_STATUS" ,  "1"                        }   }
+
+                    // Gravar o Registro na tabela temporaria
+                    DbSelectArea(cAliasPlan)
+                    (cAliasPlan)->(RecLock(cAliasPlan, .T.))
+
+                    For nX := 1 To Len(aCposTRB)
+
+                        cCampo := cAliasPlan+"->"+aCposTRB[nX][01]
+
+                        &cCampo := aCposTRB[nX][02]
+
+                    Next nX
+
+                    (cAliasPlan)->(MsUnLock())
+
+                Else
+
+                    If cProdBlock == "1"
+                        nProdBlocks++
+                        cMsgErro := "Produto Bloqueado no Cadastro (SB1)"
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                    EndIf
+
+                    If !lLoteOk
+                        nLoteNaoOk++
+                        If nMsgLote == 1
+                            cMsgErro := "Produto com controle de Lote, mas, o Lote Não foi informado."
+                        Else
+                            cMsgErro := "Produto Sem controle de Lote, mas, o Lote Foi informado."
+                        EndIf    
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                    EndIf 
+
+                    If !lExistSB2
+                        nSemSB2++
+                        cMsgErro := "Produto sem movimentação de estoques (Não existe na SB2)"
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                    EndIf
+
+                    If lExistSB7    
+                        nDuplicSB7++
+                        cMsgErro := "Lançamento de Inventário Duplicado na SB7"
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                    EndIf
+
+                    If !lExistSBE    
+                        nSemSBE++
+                        cMsgErro := "Endereço Inventariado não existe na Tabela SBE: Almoxrifado ["+aData[B7LOCAL]+"] Endereço ["+aData[B7LOCALIZ]+"]"
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                    EndIf
+
+                    If lExistEmp
+                        nEmpenhos++
+                        cMsgErro := "Produto não poderá ser inventariado pois possui Empenhos"
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                    EndIf
+
+                    If lExistRes
+                        nReservas++
+                        cMsgErro := "Produto não poderá ser inventariado pois possui Reservas" 
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                    EndIf
+
+                    If lHaCustoNeg
+                        nCustoNeg++ 
+                        cMsgErro := "Produto não poderá ser inventariado pois possui Custo Negativo"
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                    EndIf
+
+                    If lHaEnderecar 
+                        nHaEnderecar++
+                        cMsgErro := "Produto não poderá ser inventariado pois possui pendências de endereçamento"
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                    EndIf
+
+                    If lHaSaldoNeg
+                        nSaldoNeg++
+                        cMsgErro := "Produto não poderá ser inventariado pois possui Saldo Negativo"
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                    EndIf
+
+                    If lExistPNF
+                        nQPreNotas++
+                        cMsgErro := "Produto não poderá ser inventariado pois possui Pré Notas para serem classificadas"
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )                        
+                    EndIf
+
+                    If nEndereOk <> 0
+
+                        nQEndeNOk++
+
+                        Do Case
+
+                            Case nEndereOk == 1  
+                                cMsgErro := "1 - Produto usa localização (B1_LOCALIZ), mas, nao foi informado o Endereço."
+                            Case nEndereOk == 2    
+                                cMsgErro := "2 - Produto nao usa Localização (B1_LOCALIZ), mas, o Endereço foi indevidamente informado."
+                            OtherWise
+                                cMsgErro := "Erro indefinido - Controle de Endereços"
+                        
+                        EndCase
+
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+
+                    EndIf
+
+                    If nOkNumSerie <> 0
+
+                        nErroNSerie++
+
+                        Do Case 
+                        
+                            Case nOkNumSerie == 1
+                                cMsgErro := "1 - Não Utiliza Num Série, mas foi Informado : ["+aData[B7NUMSERI]+"]"
+                            Case nOkNumSerie == 2
+                                cMsgErro := "2 - Utiliza Num Série, mas não foi informado"
+                            OtherWise
+                                cMsgErro := "Erro indefinido - Num Série"    
+                        EndCase                    
+
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+
+                    EndIf
+
+                    If !lOkQtdSerie
+                        nErroNSerie++
+                        cMsgErro := "5 - Utiliza Num Série ["+aData[B7NUMSERI]+"], portanto, a qtde inventariada não poderá ser maior do que 1: ["+cValToChar(aData[B7QUANT])+"]"
+                        Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                    EndIf
+
+                EndIf
+
+            Else
+
+                If !lExistSB1
+                    nSemSB1++
+                    cMsgErro := "Produto não Cadastrado na Tabela de Produtos (SB1)"
+                    Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                EndIf
+
+                If !lExistLocal
+                    nSemArmazem++
+                    cMsgErro := "Armazém não Cadastrado na Tabela de Armazéns (NNR)"
+                    Aadd(aLogsE, { aData[B7FILIAL], aData[B7COD], aData[B7LOCAL], aData[B7LOCALIZ], aData[B7LOTECTL], cMsgErro } )
+                EndIf
+
+            EndIf
+
+        Next nI
+
+    EndIf
+
+    // Restaurar a Filial Corrente.
+    cFilAnt := cFilCorrente
+
+    // Retorno
+    aRet := { nRegsRec, nProdBlocks, nTotLidos, nSemSB2, nDuplicSB7, nSemSBE, aLogsE, nSemSB1, nSemArmazem, nEmpenhos, nReservas, nCustoNeg, nHaEnderecar, nSaldoNeg, nQPreNotas, nErroNSerie, nQEndeNOk, nLoteNaoOk }
+
+Return(aRet) 
+
+
+/*/{Protheus.doc} RecInvent
+    (long_description)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 07/12/2021
+    @version 1.0
+    @param aData, Tipo Array, Array com os dados lidos e convertidos para a gravacao na SB7.
+    @return return_var, return_type, return_description
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function RecInvent(aData, cDocumento, cTipo, cDirErro)
+
+    Local aRet         := {}
+    Local aInvent      := {}
+    Local nErrados     := 0
+    Local nOk          := 0
+    Local cErroLog     := ""
+    
+    Private lMsErroAuto    := .F.
+    Private lAutoErrNoFile := .F.
+
+    // Montar o Registro.
+    Aadd( aInvent, {"B7_FILIAL" , aData[B7FILIAL ] , NIL} )
+    Aadd( aInvent, {"B7_COD"    , aData[B7COD    ] , NIL} )
+    Aadd( aInvent, {"B7_LOCAL"  , aData[B7LOCAL  ] , NIL} )
+    Aadd( aInvent, {"B7_LOCALIZ", aData[B7LOCALIZ] , NIL} )
+    Aadd( aInvent, {"B7_NUMSERI", aData[B7NUMSERI] , NIL} )
+    Aadd( aInvent, {"B7_LOTECTL", aData[B7LOTECTL] , NIL} )
+    Aadd( aInvent, {"B7_QUANT"  , aData[B7QUANT  ] , NIL} )   
+    Aadd( aInvent, {"B7_DOC"    , cDocumento       , NIL} )
+    Aadd( aInvent, {"B7_TIPO"   , cTipo            , NIL} )            
+    Aadd( aInvent, {"B7_DATA"   , ddatabase        , NIL} )
+    Aadd( aInvent, {"B7_DTVALID", ddatabase        , NIL} )
+    Aadd( aInvent, {"B7_ORIGEM" , "MATA270"        , NIL} )               
+    Aadd( aInvent, {"B7_STATUS" , "1"              , NIL} )
+
+    lMsErroAuto := .F.
+
+    // Parametros: ( aInvent = Registro SB7; lContagem = .F. (Não gerar contagem), 3 = Incluir)
+    MsExecAuto({|a,b,c| MATA270(a,b,c)}, aInvent, .F., 3)
+
+    If lMsErroAuto
+        nErrados++ 
+        // Gravar Log na Pasta (C:\TEMP\) Por exemplo (a pasta ja devera existir) 
+        cErroLog       := "InvPlan_"+DtoS(Date())+"_"+Left(Time(),2)+"_"+SubStr(Time(),4,2)+"_"+Right(Time(),2)+".log"
+        lAutoErrNoFile :=  .F.
+        cDirErro       := AllTrim(cDirErro)+IIF(Right(AllTrim(cDirErro),1)<>"\", "\", "")
+        MostraErro(cDirErro, cErroLog)
+    Else
+        nOk++
+    Endif
+
+    // Retorno
+    aRet := { nOk, nErrados }
+    
+Return(aRet) 
+
+/*/{Protheus.doc} Continua()
+    (Confirma a execucao)
+    @type  Static Function
+    @author Sergio Silveira
+    @since 05/03/2021
+    @version 1.0
+    @param cPerg, Tipo Caractere, Nome do grupo de perguntas na tabela SX1
+    @return lRet, Tipo Logico, Executa ou nao a rotina.
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+ Static Function Continua(cPerg)
+
+    Local lRet := .F.
+
+    Pergunte(cPerg,.f.)
+
+    If MsgYesNo("Deseja Prosseguir e efetuar a geração do Inventário?") 
+        lRet := .T.						
+    Endif
+
+Return lRet
+
+//=====================================================================================+      
+// Interface para seleção da pasta de destino do arquivo a ser gerado.                 |   
+// Usa cGetFile - ADVPL                                                                |
+//                                                                                     |
+// cMask(Caracter)  -> Máscara para filtro (Ex: 'Informes Protheus (*.JPG) | *.JPG')   | 
+// cTitle(Caracter) -> Título da Janela                                                |
+// nMask(Numérico)  -> Número da máscara padrão ( Ex: 1 p/ *.JPG )                     |
+// cDir(Caracter)   -> Diretório inicial                                               |
+// lSave(Lógico)    -> .F. para mostrar o botão como 'Salvar' e .T. para botao 'Abrir' |
+// nOpc(Numérico)   -> Veja tabela em Opções                                           |
+// lServer(Lógico)  -> .T. exibe diretório do servidor                                 | 
+//                                                                                     |
+// Chamada dentro de arquivo de perguntas (SX1).                                       |                                                           
+//=====================================================================================+
+USER FUNCTION xLoadArq(c_Extensao)
+
+    Local cRet      := ""
+    Local cTipoArq  := "Arquivos (*"+c_Extensao+")     | *"+c_Extensao 
+    Local nModGetF  := GETF_LOCALFLOPPY + GETF_LOCALHARD + GETF_NETWORKDRIVE
+
+    cRet := cGetFile( cTipoArq,,1,,.T.,nModGetF, .T., .T. )
+
+RETURN(cRet)
+
+//========================================================================================+
+// Obtem os dados brutos do Arquivo CSV em qualquer ordem.                                |  
+//                                                                                        |
+//========================================================================================+
+STATIC FUNCTION LerCSV(c_Buffer)       
+
+    Local a_Ret      := {}
+    Local a_Data     := {}         
+    Local l_LastRead := .F.
+
+    While !l_LastRead
+                
+        a_Data     := GDataCSV(c_Buffer)
+        Aadd(a_Ret, allTrim(a_Data[01]))
+        c_Buffer   := a_Data[02]
+        l_LastRead := a_Data[03]
+
+    EndDo
+
+Return(a_Ret)
+
+//=====================================================+                                           
+// Obtem o dado do arquivo .CSV                        |
+//-----------------------------------------------------+
+STATIC FUNCTION GDataCSV(c_Buffer)
+
+    Local c_Ret       := ""
+    Local c_Separa    := ";" 
+    Local n_Pos       := 0       
+    Local l_LastRead  := .F.
+
+    //------------------------------------------+
+    // Obtem o dado                             |
+    //------------------------------------------+
+    n_Pos  := At(c_Separa, c_Buffer)
+    If n_Pos <> 0
+    c_Ret  := SubStr(c_Buffer, 1, n_Pos-1)
+    Else
+    c_Ret      := SubStr(c_Buffer, 1, Len(c_Buffer))             
+    l_LastRead := .T.
+    EndIf
+
+    //------------------------------------------+                                 
+    // Elimina o dado lido                      | 
+    //------------------------------------------+
+    c_Buffer  := SubStr(c_Buffer, n_Pos+1, Len(c_Buffer))
+
+RETURN( { c_Ret, c_Buffer, l_LastRead} )   
+
+//========================================================================================+
+// Preparar os dados do Arquivo para serem gravados na base.                              |
+//                                                                                        |
+// Montar a Extrutura dos dados a serem processados:                                      |
+//        [01] Conteudo                                                                   |  
+//        [02] Tipo do dado                                                               |   
+//                                                                                        |  
+// Filial;Produto;Armazem;Descricao;Endereco;Num de Serie;Lote;Qtde RGIS;Custo;Unidade    |
+//========================================================================================+
+STATIC FUNCTION BuildDataCSV(a_Data)
+
+    Local a_Ret        := {}
+
+    //--------------------------------------------------+
+    // [01] Filial                                      |
+    //--------------------------------------------------+
+    Aadd(a_Ret, { AllTrim(a_Data[01]), "C"})
+
+    //--------------------------------------------------+
+    // [02] Produto                                     |	
+    //--------------------------------------------------+
+    Aadd(a_Ret, { AllTrim(a_Data[02]), "C"})
+
+    //--------------------------------------------------+
+    // [03] Local/Armazem                               |
+    //--------------------------------------------------+
+    Aadd(a_Ret, { AllTrim(a_Data[03]), "C"})
+
+    //--------------------------------------------------+
+    // [04] Descricao                                   |
+    //--------------------------------------------------+
+    Aadd(a_Ret, { AllTrim(a_Data[04]), "C"})
+
+    //--------------------------------------------------+
+    // [05] Endereco                                    | 
+    //--------------------------------------------------+
+    Aadd(a_Ret, { AllTrim(a_Data[05]), "C"})
+
+    //--------------------------------------------------+
+    // [06] Num de Serie                                |	
+    //--------------------------------------------------+
+    Aadd(a_Ret, { AllTrim(a_Data[06]), "C"})
+
+    //--------------------------------------------------+
+    // [07] Lote                                        |	
+    //--------------------------------------------------+
+    Aadd(a_Ret, { AllTrim(a_Data[07]), "C"})
+
+    //--------------------------------------------------+
+    // [08] Qtde Inventariada                           |
+    //--------------------------------------------------+
+    Aadd(a_Ret, { AllTrim(a_Data[08]), "N"})
+
+    //--------------------------------------------------+
+    // [09] Custo                                       |	
+    //--------------------------------------------------+
+    Aadd(a_Ret, { AllTrim(a_Data[09]), "N"})
+
+    //--------------------------------------------------+
+    // [10] Unidade                                     |	
+    //--------------------------------------------------+
+    Aadd(a_Ret, { AllTrim(a_Data[10]), "C"})
+
+RETURN(a_Ret)
+
+//=======================================================================+
+// Converte os dados lidos do Arquivo .CSV de acordo com seu tipo.       |
+//                                                                       |
+//=======================================================================+
+STATIC FUNCTION ChangData(a_Data)
+
+    Local a_Ret := {}
+    Local n_I   := 0
+
+    For n_I := 1 To Len(a_Data)             
+        
+        Do Case
+        
+        Case a_Data[n_I][02] == "C"
+            Aadd(a_Ret, KillL160(a_Data[n_I][01]))
+        Case a_Data[n_I][02] == "N"                             
+            Aadd(a_Ret, Val(DecPoint(a_Data[n_I][01])))       
+        Case a_Data[n_I][02] == "D"     
+            Aadd(a_Ret, CTOD(a_Data[n_I][01]))              
+        Case a_Data[n_I][02] == "L"     
+            Aadd(a_Ret, &(a_Data[n_I][01]))                          
+        OtherWise                 
+            // Indefindo - Retorna como caracter
+            Aadd(a_Ret, KillL160(a_Data[n_I][01]))
+
+        EndCase
+
+    Next
+
+RETURN(a_Ret)  
+
+//================================================================+
+// Verifica se tem virgula decimal e troca por ponto decimal      |
+//================================================================+
+Static Function DecPoint(c_Valor)
+
+    Local c_Ret := STRTRAN(c_Valor, ".", "")   // Retirar separador de milhar!
+
+    c_Ret := STRTRAN(c_Ret, ",", ".")  // Transformar a virgula decimal em ponto decimal. 
+                                
+Return(c_Ret)      
+
+//==========================================================================================+
+// Retirar caracter especial CHR(160) a esquerda do dado, pois, nao faz parte do codigo.    |
+//                                                                                          |
+//                                                                                          |           
+//==========================================================================================+
+STATIC FUNCTION KillL160(cDado)
+
+    Local cRet         := AllTrim(cDado)
+    Local lFirstIs160  := IIF(SubStr(cRet, 1, 1) == CHR(160), .T., .F.) 
+
+    If lFirstIs160
+
+        cRet := SubStr(cRet, 2, Len(cRet)-1)
+
+    EndIf
+
+Return(cRet)
+
+/*/{Protheus.doc} nomeStaticFunction
+    (long_description)
+    @type  Static Function
+    @author user
+    @since 06/12/2021
+    @version version
+    @param param_name, param_type, param_descr
+    @return return_var, return_type, return_description
+    @example
+    (examples)
+    @see (links_or_references)
+    /*/
+Static Function BuildLogE(oSay, c_Path, a_ErrorLog, cDirPlan)
+                                   
+    Local  n_I         := 0
+    Local  c_ErrorLog  := ""
+    Local  c_Prg       := "INVPLAN"    
+    Local  cNomeArq    := c_Prg+"_"+DtoS(Date())+Left(Time(),2)+SubStr(Time(),4,2)+Right(Time(),2)+".log"
+    Local  c_ArqLogE   := c_Path+cNomeArq
+    Local  nQtdeLinhas := Len(a_ErrorLog)
+    Local  nSpace      := 2
+    Local  nTamAuxF    := TamSX3("B7_FILIAL")[1]
+    Local  nTamFil     := IIF(nTamAuxF<6, 6, nTamAuxF)
+    Local  nTamProd    := TamSX3("B7_COD")[1]
+    Local  nTamAuxL    := TamSX3("B7_LOCAL")[1]
+    Local  nTamLocal   := IIF(nTamAuxL<7, 7, nTamAuxL)
+    Local  nTamEnd     := TamSX3("B7_LOCALIZ")[1]
+    Local  nTamLote    := TamSX3("B7_LOTECTL")[1] 
+    Local  nTamMsg     := 120
+    Local  nTamLinha   := nTamFil+nSpace+nTamProd+nSpace+nTamLocal+nSpace+nTamEnd+nSpace+nTamLote+nSpace+nTamMsg
+    Local  cTitulos    := ""
+    
+    // Criação do Arquivo de Erros
+    Private nHdl    := fCreate(c_ArqLogE)
+                        
+    c_ErrorLog += Replicate("=",nTamLinha)+CRLF
+    c_ErrorLog += "Log de Erros da Importação de arquivo .CSV (Inventários) - Programa "+c_Prg+".prw"+CRLF 
+    c_ErrorLog += CRLF
+    c_ErrorLog += "Arquivo .csv: "+AllTrim(cDirPlan)+CRLF
+    c_ErrorLog += CRLF    
+    c_ErrorLog += "Data : "+DTOC(Date())+CRLF
+    c_ErrorLog += "Hora : "+Time()+CRLF 
+    c_ErrorLog += Replicate("=",nTamLinha)+CRLF       
+
+    // Gravar o Cabec do Arquivo.
+    fWrite(nHdl,c_ErrorLog,Len(c_ErrorLog))
+
+    // Gravar os Erros Encontrados a partir do Array de Erros (Linha a Linha para evitar estouro do arquivo.
+    c_ErrorLog := ""
+    
+    If nQtdeLinhas > 0
+
+        // Gerar o titulo das colunas
+        cTitulos := Space(nTamLinha)+CRLF
+        cTitulos += Padr("Filial", nTamFil)+Space(nSpace)+Padr("Produto", nTamProd)+Space(nSpace)+Padr("Armazem", nTamLocal)+Space(nSpace)+Padr("Endereço", nTamEnd)+Space(nSpace)+Padr("Lote", nTamLote)+Space(nSpace)+Padr("Mensagem", nTamMsg)+CRLF
+        cTitulos += Replicate("-", nTamLinha)
+        cTitulos += Space(nTamLinha)+CRLF
+
+        fWrite(nHdl,cTitulos,Len(cTitulos))
+
+        For n_I := 1 To nQtdeLinhas
+            
+            // Apresenta a indicacao de progresso/processamento.
+            oSay:cCaption := ('Regs/Total '+cValToChar(n_I)+"/"+cValToChar(nQtdeLinhas))
+            ProcessMessages()
+
+            // Grava a linha de erro.
+            c_ErrorLog := Padr(a_ErrorLog[n_I][1], nTamFil)+Space(nSpace)+Padr(a_ErrorLog[n_I][2], nTamProd)+Space(nSpace)+Padr(a_ErrorLog[n_I][3], nTamLocal)+Space(nSpace)+Padr(a_ErrorLog[n_I][4], nTamEnd)+Space(nSpace)+Padr(a_ErrorLog[n_I][5], nTamLote)+Space(nSpace)+Padr(a_ErrorLog[n_I][6], nTamMsg)+CRLF
+            fWrite(nHdl,c_ErrorLog,Len(c_ErrorLog))
+
+        Next
+
+    EndIf
+
+    c_ErrorLog := "*** Fim do Log *** "+CRLF
+
+    fWrite(nHdl,c_ErrorLog,Len(c_ErrorLog))
+
+    // Fechar o Arquivo gerado.
+    fClose(nHdl)
+
+RETURN(cNomeArq)                   
+

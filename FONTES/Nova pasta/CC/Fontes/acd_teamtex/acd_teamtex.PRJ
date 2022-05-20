@@ -1,0 +1,70 @@
+Group TEAMTEX
+   Version=7.0
+   VSSDB=
+   HasProperties=1
+   Properties
+      BeforeApply=
+      AfterApply=
+      Icon=
+      ID=
+      Version=
+      PalmName=
+      OutPut=
+   End
+   ProjectsCount=1
+   Project ACD
+      FoldersCount=1
+      Folder Fontes
+         VSSPath=Fontes
+         FilesCount=16
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdimg00.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdimg01.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdimg02.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdimg03.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdimg04.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdimg05.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdimg06.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdimg07.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdimg08.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdimg09.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdimg10.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\acd_teamtex\acdmgTmp.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\TTB_CB0.PRW
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\TTB_ETIQ.prw
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\TTB_ETIQ_2.PRW
+             Type=T
+         End
+         File \wks2\Team Tex\Fontes\TTB_ETIQ3.PRW
+             Type=T
+         End
+      End
+   End
+End

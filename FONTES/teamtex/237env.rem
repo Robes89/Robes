@@ -1,0 +1,54 @@
+Codigo Registro0010010"0"                                                         
+Codigo Remessa 0020020"1"                                                         
+Literal Remessa0030090"REMESSA"                                                   
+Codigo Servico 0100110"01"                                                        
+Literal Servico0120260"COBRANCA"                                                  
+Codigo Empresa 0270460STRZERO(VAL(SEE->EE_CODEMP),20)                             
+Nome da Empresa0470760SUBSTR(SM0->M0_NOMECOM,1,30)                                
+Codigo do Banco0770790"237"                                                       
+Nome do Banco  0800940"BRADESCO"                                                  
+Data Gravacao  0951000GravaData(dDataBase,.F.)                                    
+Brancos        1011080SPACE(8)                                                    
+Ident.Sistema  1091100"MX"                                                        
+Num.Remessa    1111170STRZERO(VAL(SEE->EE_ULTDSK),7)                              
+Brancos        1183940SPACE(277)                                                  
+Num.Sequencial 3954000"000001"                                                    
+Codigo Registro001001 "1"                                                         
+Id.Deb. Automat002019 REPLICATE('0',19)                                           
+Id.Emp.BCO     020021 "00"                                                        
+Codigo Carteira022024 "009"                                                       
+Cod. Agencia   025029 STRZERO(VAL(SEE->EE_AGENCIA),5)                             
+Conta Corrente 030037 STRZERO(VAL(SEE->EE_CONTA),7)+SEE->EE_DVCTA                 
+ID CNAB        038062 SE1->E1_IDCNAB+SE1->E1_TIPO                                 
+Bco|Multa|%    063065 "000"                                                       
+Campo de Multa 066066 "2"                                                         
+Perc multa     067070 '0200'                                                      
+Dg Nosso Num   071082 SUBSTR(SE1->E1_NUMBCO,1,11) +SUBSTR(SE1->E1_NUMBCO,13,1)    
+Desc.Boni      083092 strzero(10)                                                 
+Seu Numero     093093 "2"                                                         
+ID.Pap.Deb.Auto094094 "S"                                                         
+Brancos        095104 space(10)                                                   
+Id. Rateio Cred105105 space(1)                                                    
+Branco         106108 space(3)                                                    
+Id.Ocorrencia  109110 IF(EMPTY(SE1->E1_OCORREN),'01',SE1->E1_OCORREN)             
+No.Doc.        111120 SE1->E1_IDCNAB                                              
+Data Vencimento121126 gravadata(se1->e1_vencto,.f.)                               
+Valor          127139 STRZERO(INT(ROUND(SE1->E1_VALOR*100,2)),13)                 
+Zeros          140147 strzero(8)                                                  
+Espec.Tit      148149 "01"                                                        
+Identificacao  150150 "N"                                                         
+Data Emissao   151156 GRAVADATA(SE1->E1_EMISSAO,.F.)                              
+1 e 2 instrucao157160 STRZERO(4)                                                  
+Juros por dia  1611732Strzero(INT(ROUND(SE1->E1_VALOR*0.33/100,2)*100),13)        
+Brancos        174218 REPLICATE('0',45)                                           
+Id tipo Sacado 219220 IIF(SA1->A1_PESSOA=="F","01","02")                          
+Num.Insc.Sacado221234 PADL(ALLTRIM(SA1->A1_CGC),14,"0")                           
+Nome Sacado    235274 SubStr(SA1->A1_NOME,1,40)                                   
+End. Sacado    275314 IIF(EMPTY(SA1->A1_ENDCOB),SA1->A1_END,SA1->A1_ENDCOB)       
+1a.Mensagem    315326 space(12)                                                   
+CEP Sacado     327334 IIF(EMPTY(SA1->A1_CEPC),SA1->A1_CEP,SA1->A1_CEPC)           
+2a.Mensagem    335394 space(60)                                                   
+Sequencial     395400 Incrementa()                                                
+Codigo Registro0010010"9"                                                         
+Brancos        0023940SPACE(393)                                                  
+Numero Sequenc 3954000Incrementa()                                                
