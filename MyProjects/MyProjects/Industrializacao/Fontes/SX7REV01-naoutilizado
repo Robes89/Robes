@@ -1,0 +1,8 @@
+User Function SX7REV01()
+Local cRet
+If (M->C5_CLIENTE + M-> TIPO=="N")
+aCols[n][aScan(aHeader,{|x| AllTrim(x[2])=="C6_OPER"})] := "01"
+Endif
+cRet := aCols[n][aScan(aHeader,{|x| AllTrim(x[2])=="C6_OPER"})]
+MaTesInt(2,cRet,M->C5_CLIENT,M->C5_LOJAENT,If(M->C5_TIPO$‘DB‘,"F","C"),M->C6_PRODUTO,"C6_TES")
+Return cRet

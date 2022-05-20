@@ -1,0 +1,32 @@
+#include "rwmake.ch"     
+
+/*
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Programa  ³ VALIMP   ³ Autor ³ Thiago Menegocci    ³ Data ³ 18/05/2019 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descri‡…o ³ Este Rdmake compoe as Rotinas de geracao do SISPAG, arquivo³±±
+±±³          ³ 341REM.PAG e 341RET.PAG                                    ³±±
+±±³          ³ Calcula o layout para o Valor no Codigo de Barras          ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+*/
+
+User Function VALIMP()    
+
+If Len(Alltrim(SE2->E2_LINDIG)) == 44             
+       _cValCamp := Substr(SE2->E2_LINDIG,10,10)
+ElseIf Len(Alltrim(SE2->E2_LINDIG)) == 47
+       _cValCamp := Substr(SE2->E2_LINDIG,38,10)
+ElseIf Len(Alltrim(SE2->E2_LINDIG)) == 48
+       _cValCamp := Substr(SE2->E2_LINDIG,05,07) + Substr(SE2->E2_LINDIG,07,04)
+ElseIf Len(Alltrim(SE2->E2_LINDIG)) >= 36 .and. Len(Alltrim(SE2->E2_LINDIG)) <= 43
+       _cValCamp := Alltrim(Substr(SE2->E2_LINDIG,34,10))
+Else
+       _cValCamp := "0000000000"                 
+EndIf	
+
+_cValCamp := Strzero(Val(_cValCamp),10) 
+
+Return(_cValCamp)

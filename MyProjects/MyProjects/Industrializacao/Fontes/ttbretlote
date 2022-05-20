@@ -1,0 +1,16 @@
+#include "Protheus.ch"
+User Function ttbretlote()
+local clote:=''
+local cmes:={'01A','02B','03C','04D','05E','06F','07G','08H','09I','10J','11L','12M')
+local cLetra:=''
+local cAno:=Substr(dtos(ddatabase),1,2)
+local cMes:=Substr(dtos(ddatabase),5,2) 
+local cProxlot:=Getmv("MV_PRXLOTE")
+for i:=1 Len(cmes)
+     If Month(ddatabase)=Val(substr(cmes[i],1,2))
+        cletra:=substr(cmes[i],3,1))    
+     Endif
+Next 
+clote:=cAno+cletra+cmes+cProxlot
+
+Return(clote)

@@ -1,0 +1,31 @@
+#include "rwmake.ch"
+
+/*/
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Programa  ³ SISP001  ³ Autor ³ Alexandre da Silva    ³ Data ³ 01/09/00 ³±±
+±±³Programa  ³ SISP001  ³ MODIFI³ Cesar Moura           ³ Data ³ 03/03/05 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descri‡…o ³ ExecBlock disparado do SISPAG.PAG para retornar agencia e  ³±±
+±±³          ³ conta do fornecedor.                                       ³±±            
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³ Uso      ³ CNAB SISPAG                                                ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+*/
+
+User Function SISP001()
+Local _cReturn
+
+IF (SE2->E2_BANCO) == "341"
+	_cReturn :=	"0"+SUBSTR(SE2->E2_AGENCIA,1,4)+" "+"0000000"+SUBSTR(SE2->E2_NUMCON,1,5)+" "+"0"
+
+Else //Alterado - Thiago Menegocci
+	_cReturn :=StrZero(Val(Alltrim(SE2->E2_AGENCIA)),5)+" "+LEFT(PADL(STRTRAN(ALLTRIM(SE2->E2_NUMCON),"-"),13,"0"),12)+""
+//StrZero(Val(SUBSTR(SE2->E2_NUMCON,1,13)),12)	
+
+Endif
+
+Return(_cReturn)

@@ -1,0 +1,68 @@
+COD. REGISTRO  0010010"0"                                                         
+COD. ARQUIVO   0020020"1"                                                         
+IDENT. ARQUIVO 0030090"REMESSA"                                                   
+COD. SERVICO   0100110"11"                                                        
+IDENT. SERVICO 0120260"PAGTOS FORNECED"                                           
+N° CONTA       0270340PADL(ALLTRIM(SA6->A6_NUMCON),7,"0")+SA6->A6_DVCTA           
+VALIDA TRAILER 0350350"N"                                                         
+BRANCOS        0360370SPACE(02)                                                   
+COD. AGENCIA   0380440STRZERO(VAL(SA6->A6_AGENCIA),7)                             
+BRANCOS        0450460SPACE(02)                                                   
+NOME CLIENTE   0470760SUBSTR(SM0->M0_NOMECOM,1,30)                                
+COD. BANCO     0770790"422"                                                       
+NOME BANCO     0800940"BANCO SAFRA S/A"                                           
+DATA GRAVACAO  0951000GRAVADATA(SE2->E2_EMISSAO,.F.)                              
+ORIGEM USO SAFR1011010"0"                                                         
+TERCEIRO USO SA1021030"00"                                                        
+BRANCOS        1043870SPACE(284)                                                  
+VALIDA CNPJ/CPF3883880"S"                                                         
+N° SEQ ARQUIVO 3893940INCREMENTA()                                                
+N° SEQ REGISTRO3954000"000001"                                                    
+COD. REGISTRO  0010010"1"                                                         
+COD. INSCRICAO 0020030IIF(SM0->M0_TPINSC==03,02,01)                               
+N° INSCRICAO   0040170STRZERO(VAL(SM0->M0_CGC),14)                                
+N° DA CONTA    0180250PADL(ALLTRIM(SA6->A6_NUMCON),7,"0")+SA6->A6_DVCTA           
+BRANCOS        0260280SPACE(03)                                                   
+COD. AGENCIA   0290350STRZERO(VAL(SA6->A6_AGENCIA),7)                             
+BRANCOS        0360370SPACE(02)                                                   
+USO EMPRESA    0380620SE2->E2_PREFIXO+SE2->E2_NUM+SE2->E2_PARCELA                 
+CNPJ FORNECEDOR0630760PADL(ALLTRIM(SA2->A2_CGC),14,"0")                           
+TIPO DOCUMENTO 0770790ALLTRIM(SE2->E2_TIPO)                                       
+N° COMPROMISSO 0800890SE2->E2_IDCNAB                                              
+SEQ COMPROMISSO0900900SPACE(01)                                                   
+BRANCOS        0911070SPACE(17)                                                   
+COD. OPERACAO  1081080"C"                                                         
+COD. OCORRENCIA1091100IIF(ALLTRIM(SE2->E2_OCORREN)==" ","01",SE2->E2_OCORREN)     
+SEU NUMERO     1111200SE2->E2_IDCNAB                                              
+DATA VENCIMENTO1211260GRAVADATA(SE2->E2_VENCTO,.F.)                               
+VALOR PAGTO    1271390STRZERO(SE2->(E2_SALDO+E2_ACRESC-E2_DECRESC)*100,13)        
+TIPO PAGAMENTO 1401420u_EFINS018()                                                
+BANCO FORNECE  1431450PADL(ALLTRIM(SA2->A2_BANCO),3,"0")                          
+AGENCIA DESTINO1461520STRZERO(VAL(SA2->A2_AGENCIA),6) + "0"                       
+ZEROS          1531550STRZERO(0,3)                                                
+C/C FORNECEDOR 1561650u_EFINS021()                                                
+USO BANCO      1661850SPACE(20)                                                   
+AGENCIA PAGTO  1861920STRZERO(VAL(SA2->A2_AGENCIA),7)                             
+BRANCOS        1932470SPACE(55)                                                   
+ZEROS          2482630U_EFINS020()                                                
+NOME FORNECEDOR2642930SUBSTR(SA2->A2_NOME,1,30)                                   
+BRANCOS        2943470u_EFINS016()                                                
+ZEROS          3483600STRZERO(0,13)                                               
+DATA PAGAMENTO 3613660GRAVADATA(SE2->E2_VENCTO,.F.)                               
+VLR PAGAMENTO  3673792STRZERO(SE2->(E2_SALDO+E2_ACRESC-E2_DECRESC)*100,13)        
+COD. MOEDA     3803830"R$"                                                        
+BRANCOS        3843910SPACE(08)                                                   
+DIG. AGENCIA   3923920SPACE(01)                                                   
+BRANCOS        3933940SPACE(02)                                                   
+N° SEQ REGISTRO3954000INCREMENTA()                                                
+COD. REGISTRO  0010010"9"                                                         
+BRANCOS        0021240SPACE(123)                                                  
+VALOR TOTAL    1251392STRZERO(SOMAVALOR(),15)                                     
+BRANCOS        1402480SPACE(109)                                                  
+TOTAL ABATIMENT2492632STRZERO(0,15)                                               
+BRANCOS        2643450SPACE(82)                                                   
+TOT JUROS MORA 3463602STRZERO(0,15)                                               
+BRANCOS        3613640SPACE(04)                                                   
+TOTAL VLR PAGTO3653792STRZERO(SOMAVALOR(),15)                                     
+BRANCOS        3803940SPACE(15)                                                   
+N° SEQ REGISTRO3954000INCREMENTA()                                                
