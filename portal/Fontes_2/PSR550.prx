@@ -1,0 +1,423 @@
+#include "rwmake.ch"
+#INCLUDE "TOPCONN.CH"
+#INCLUDE "TBICODE.CH"
+#INCLUDE "TBICONN.CH"
+#INCLUDE "PROTHEUS.CH"
+
+
+/*/{Protheus.doc}'Notas Fiscais de Saida'
+'Enviar notas fiscais de saida via e-mail'
+@author Ovio Consultoria
+@since ''
+@version ''
+@type function
+@see ''
+@obs ''
+@param ''
+@return ''
+/*/  
+
+User Function PSR550(aParams)
+	
+	Local aSays     	:= {}
+	Local aButtons  	:= {}
+	Local cCadastro  	:= OemToAnsi("Notas Fiscais de Saida.")
+	Local cPerg 		:= "PSR5500001"     
+	
+	Private lSChedule	:= IsInCallStack("WFLAUNCHER")
+	Private npZebrado 	:= 0
+	
+	If !lSChedule
+		
+		AjusPerg(cPerg)
+		Pergunte(cPerg,.T.)
+
+		AAdd(aSays,OemToAnsi("Planilha Notas Fiscais de Saida. "	))
+		AAdd(aSays,OemToAnsi("Gerar planilha de movimentos das notas fiscais de saida."))
+		AAdd(aButtons, { 5,.T.						,{|| Pergunte(cPerg,.T. )  		  }})
+		AADD(aButtons, { 1,.T.						,{|o| (TRImpAna(),o:oWnd:End())   }})
+		AADD(aButtons, { 2,.T.						,{|o| o:oWnd:End()				  }})
+
+		FormBatch( cCadastro, aSays,aButtons )
+	Else
+
+		cEmp := aParams[1]
+		cFil := aParams[2]
+
+		RPCSetType(3)
+        RpcSetEnv(cEmp,cFil,Nil,Nil,"FAT") 
+
+		Pergunte(cPerg,.F.)
+		MV_PAR01 := Space(TamSx3("F2_DOC")[1])
+		MV_PAR02 := Repl("Z",TamSx3("F2_DOC")[1])
+		MV_PAR03 := FirstDate(dDatabase)
+		MV_PAR04 := LastDate(dDatabase)
+		MV_PAR05 := Space(TamSx3("F2_FILIAL")[1])
+		MV_PAR06 := Repl("Z",TamSx3("F2_FILIAL")[1])
+		MV_PAR07 := 2
+
+		TRImpAna()
+
+		RpcClearEnv()
+
+	Endif	
+
+Return
+
+/*/{Protheus.doc}'Notas Fiscais de Saida'
+'Enviar notas fiscais de saida via e-mail'
+@author Ovio Consultoria
+@return ''
+/*/  
+
+Static Function TRImpAna()
+Local cDirTmp   := ""
+Local cArqOld	:= CriaTrab( NIL, .F. ) + ".xml"
+Local cAliasQry	:= GetnextAlias()
+Local cPlan		:= "Notas Fiscais de Saida"
+Local cWhere	:= ""
+
+if !lSChedule
+	cDirTmp := Alltrim(GetTempPath())
+Endif
+
+cWhere	+= "%"
+cWhere	+= " AND F2_FILIAL>='"+MV_PAR05+"' AND F2_FILIAL<='"+MV_PAR06+"' "
+If MV_PAR07 == 2
+	cWhere	+= "AND F2_TIPO<>'D'"
+EndIf
+cWhere		+="%"
+
+BeginSql Alias cAliasQry
+	SELECT F2_FILIAL,F2_DOC,F2_SERIE,F2_EMISSAO,F2_TIPO,F2_ICMSRET,F2_CLIENTE,F2_LOJA,
+	       F2_FRETE,F2_FRETAUT,F2_ICMAUTO,F2_VALBRUT,F2_VALIPI,F2_VALICM,F2_VALISS,
+	       D2_FILIAL,D2_DOC,D2_SERIE,D2_COD,D2_GRUPO,D2_TP,D2_TIPO,D2_CLIENTE,D2_LOJA,D2_GRADE,
+	       D2_CF,D2_TES,D2_LOCAL,D2_PRCVEN,D2_ICMSRET,D2_QUANT,D2_TOTAL,D2_EMISSAO,
+	       D2_VALIPI,D2_CODISS,D2_VALISS,D2_VALICM,D2_ITEM,F2_FRETE,F2_SEGURO,F2_DESPESA, D2_GRADE,D2_PEDIDO, D2_ITEMPV,
+	       B1_DESC, A1_NOME, A1_COD, A1_LOJA, F4_INCSOL, F4_AGREG, F4_ICM, F4_ISS
+	  FROM %Table:SD2% SD2, %Table:SB1% SB1, %Table:SF4% SF4, %Table:SF2% SF2
+	       LEFT JOIN %Table:SA1% SA1 ON A1_FILIAL	= %xFilial:SA1%
+	                                AND A1_COD = F2_CLIENTE
+	                                AND A1_LOJA = F2_LOJA
+	                                AND SA1.%notdel%
+	 WHERE 
+	       F2_DOC >= %Exp:mv_par01%
+	   AND F2_DOC <= %Exp:mv_par02%
+	   AND F2_EMISSAO >= %Exp:DtoS(mv_par03)%
+	   AND F2_EMISSAO <= %Exp:DtoS(mv_par04)%
+	   AND SF2.%notdel%
+	   AND D2_FILIAL = F2_FILIAL
+	   AND D2_CLIENTE = F2_CLIENTE
+	   AND D2_LOJA = F2_LOJA
+	   AND D2_DOC = F2_DOC
+	   AND D2_SERIE = F2_SERIE
+	   AND SD2.%notdel%
+	   AND B1_COD = D2_COD
+	   AND F4_CODIGO = D2_TES
+	   AND SF4.%notdel%
+	   %Exp:cWhere%
+	 ORDER BY SF2.F2_EMISSAO,SF2.F2_DOC,SF2.F2_SERIE,SD2.D2_COD,SD2.D2_ITEM
+EndSql
+
+
+oExcel   := FWMsExcelEx():New()
+oExcel:AddworkSheet(cPlan)
+oExcel:AddTable (cPlan,cPlan)
+
+oExcel:AddColumn(cPlan,cPlan,"Filial",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Cliente",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Loja",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Nome",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Nota Fiscal",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Série",1,1)
+oExcel:AddColumn(cPlan,cPlan,"DT Emissao",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Tipo da nota",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Produto",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Descricao",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Quantidade",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Valor Unitario",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Valor Mercadoria",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Armaz",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Cfo",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Tes",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Pedido",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Item",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Valor IPI",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Valor Icms",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Valor Iss",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Desp.Acessorias",1,1)
+oExcel:AddColumn(cPlan,cPlan,"Total",1,1)
+
+aDados := {}
+lPrint := .F.
+
+(cAliasQry)->(dbGotop())
+While  !(cAliasQry)->(Eof())
+
+	lPrint := .T.
+
+	IF (cAliasQry)->F2_TIPO $ "BD"
+		dbSelectArea("SA2")
+		dbSetOrder(1)
+		dbSeek(xfilial("SA2")+(cAliasQry)->F2_CLIENTE+(cAliasQry)->F2_LOJA)		
+		cNome := SA2->A2_NOME	
+	Else
+		cNome := (cAliasQry)->A1_NOME	
+	EndIf 
+
+	aDados := {;
+			(cAliasQry)->D2_FILIAL,;	//"Filial"
+			(cAliasQry)->F2_CLIENTE,;	//"Cliente"
+			(cAliasQry)->F2_LOJA,;		//"Loja"
+			cNome,;						//"Nome"
+			(cAliasQry)->F2_DOC,;		//"Nota Fiscal"
+			(cAliasQry)->F2_SERIE,;		//"Série"
+			(cAliasQry)->D2_EMISSAO,;	//"DT Emissao"
+			(cAliasQry)->F2_TIPO,;		//"Tipo da nota"
+			(cAliasQry)->D2_COD,;		//"Produto"
+			(cAliasQry)->B1_DESC,;		//"Descricao"
+			(cAliasQry)->D2_QUANT,;		//"Quantidade"
+			(cAliasQry)->D2_PRCVEN,;	//"Valor Unitario"
+			(cAliasQry)->D2_TOTAL,;		//"Valor Mercadoria"
+			(cAliasQry)->D2_LOCAL,;		//"Armaz"
+			(cAliasQry)->D2_CF,;   		//"Cfo"
+			(cAliasQry)->D2_TES,;  		//"Tes"
+			(cAliasQry)->D2_PEDIDO,;	//"Pedido"
+			(cAliasQry)->D2_ITEMPV,;    //"Item"
+			(cAliasQry)->D2_VALIPI,;	//"Valor IPI"
+			(cAliasQry)->D2_VALICM,;	//"Valor Icms"
+			(cAliasQry)->D2_VALISS,;	//"Valor Iss"
+			(cAliasQry)->F2_DESPESA,;	//"Desp.Acessorias"
+			(cAliasQry)->F2_VALBRUT;	//"Total"
+		}      
+	    
+        oExcel:AddRow(cPlan , cPlan , aDados )
+
+        (cAliasQry)->(dbSkip())
+       
+End
+
+If lPrint
+	
+	oExcel:Activate()
+	oExcel:GetXMLFile( cArqOld )
+	
+	fSendMail({cArqOld})
+
+	If !lSChedule
+		If __CopyFile( cArqOld, cDirTmp + cArqOld ) 
+			oExcel := MsExcel():New()
+			oExcel:WorkBooks:Open( cDirTmp + cArqOld )
+			oExcel:SetVisible(.T.)
+		Endif
+	Endif
+Else
+    Aviso("Atenção","Sem dados para os parametros informado",{"Ok"})
+Endif		
+
+Return
+
+/*/{Protheus.doc}'Notas Fiscais de Saida'
+'Enviar notas fiscais de saida via e-mail'
+@author Ovio Consultoria
+/*/  
+Static Function fSendMail(aAnexos)
+Local lSend    := .F.
+Local cHtml    := ""
+Local cSubject := "Notas Fiscais de Saida."
+Local cEmail   := Alltrim(GetMv("OV_EMAILNF",,""))
+
+If Substr(cEmail,Len(cEmail),1)==";"
+	cEmail := Substr(cEmail,1,Len(cEmail)-1) 
+Endif	
+
+If !lSChedule
+	If !Empty(MV_PAR08)
+		cEmail += ";"+Lower(Alltrim(MV_PAR08))
+		If Substr(cEmail,Len(cEmail),1)==";"
+			cEmail := Substr(cEmail,1,Len(cEmail)-1) 
+		Endif
+	Endif
+Endif
+
+cHtml += '<html>'
+cHtml += '   <head>'
+cHtml += '      <meta http-equiv=Content-Type content="text/html; charset=windows-1252">'
+cHtml += '      <meta name=Generator content="Microsoft Word 15 (filtered)">'
+cHtml += '      <style></style>'
+cHtml += '   </head>'
+cHtml += '   <body lang=PT-BR>'
+cHtml += '      <div class=WordSection1>'
+cHtml += '         <p class=xmsonormal><span style="font-size:11.0pt;font-family:Calibri,sans-serif">Prezado(a)</span>'
+cHtml += '         </p>'
+cHtml += '         <p class=xmsonormal><span style="font-size:11.0pt;font-family:Calibri,sans-serif">   '
+cHtml += '            Você está recebendo este e-mail com o relatório de notas fiscais de saida.</span>'
+cHtml += '         </p>'
+cHtml += '         <p class=xmsonormal><span style="font-size:11.0pt;font-family:Calibri,sans-serif">   '
+cHtml += '            Atenciosamente,</span>'
+cHtml += '         </p>'
+cHtml += '         <p class=xmsonormal><span style="font-size:11.0pt;font-family:Calibri,sans-serif">   '
+cHtml += '            Workflow Protheus ;) </span>'
+cHtml += '         </p>'
+cHtml += '         <p class=MsoNormal>&nbsp;</p>'
+cHtml += '      </div>'
+cHtml += '   </body>'
+cHtml += '</html>'
+
+lSend := ATEnvMail(cHtml,cEmail,cSubject,aAnexos)
+If lSend
+    Conout("E-Mail de notas fiscais enviado com sucesso. ")
+Endif
+
+Return .T.
+
+/*/{Protheus.doc}'ATEnvMail'
+''
+@author Ovio Consultoria
+@since ''
+@version ''
+@type function
+@see ''
+@obs ''
+@param ''
+@return ''
+/*/
+Static Function ATEnvMail(cHtml,cEmail,cSubject,aAnexos)
+Local nI            := 1
+Local lResult    	:= .T.
+Local cError     	:= ""
+Local cTo      		:= ""  
+Local lAuth    		:= GetMv("OV_RELAUTH",,.T.)
+Local cMailConta	:= Alltrim(GetMv("OV_RELACNT",,"wfecoprotheus@gmail.com"))
+Local cMailServer	:= Alltrim(GetMv("OV_RELSERV",,"smtp.gmail.com:587"))
+Local cMailSenha 	:= Alltrim(GetMv("OV_RELPSW" ,,"Protheus@2020"))
+Local cFileSrv      := Alltrim(GetMv("OV_SRVFILE",,"\srvfile"))
+Local cAnexos		:= ""
+Local lRet          := .F.
+
+Default aAnexos     := {} 
+                     
+cTo	:= RTrim(cEmail) 
+
+If !Empty(cMailServer) .And. !Empty(cMailConta) .And. !Empty(cMailSenha)
+
+	CONNECT SMTP SERVER cMailServer ACCOUNT cMailConta PASSWORD cMailSenha RESULT lResult
+
+	If lResult
+		If lAuth
+			lResult := MailAuth(cMailConta,cMailSenha)
+		EndIf
+		If lResult
+			If Len(aAnexos)>0
+				cAnexos:=''
+				For nI:=1 to Len(aAnexos)
+					//CpyT2S( aAnexos[1] , cFileSrv , .F. )  
+					cAnexos := "\system\"+aAnexos[nI]
+				Next 
+			Endif	
+
+	  		SEND MAIL  				;
+			FROM       cMailConta	;
+			TO		   cTo			;
+			SUBJECT	   cSubject		;
+			BODY	   cHtml		;
+			ATTACHMENT cAnexos      ;
+			RESULT	   lResult
+			If !lResult
+				GET MAIL ERROR cError
+				cError := cError+".Falha no Envio do e-mail." 
+				If !lSChedule
+                    ALERT(cError) 
+                Else
+                    Conout(cError) 
+                Endif 
+            Else
+                lRet := .T.       
+			EndIf
+		Else
+			//Erro na autenticacao da conta
+			GET MAIL ERROR cError
+			cError := cError+".Falha no Envio do e-mail." 
+			If !lSChedule
+                ALERT(cError) 
+            Else
+                Conout(cError) 
+            Endif
+		Endif
+	Else
+		GET MAIL ERROR cError
+		cError := cError+".Falha no Envio do e-mail." 
+		If !lSChedule
+            ALERT(cError) 
+        Else
+            Conout(cError) 
+        Endif
+	Endif
+Endif
+
+Return lRet
+
+
+/*/{Protheus.doc}AjusPerg
+
+Regras para chamada do mï¿½todo
+
+@author Ovio Consultoria
+@since 19/06/2019
+@version P12 
+@param 	
+@return	
+/*/ 
+Static Function AjusPerg(cPerg)
+
+Local aRegs := {}
+
+aAdd(aRegs,{cPerg,"01","Documento De  ?","","","mv_ch1","C",TamSx3("F2_DOC")[1]  	,0,0,"G","","MV_PAR01",""         ,"","","","",""        ,"","","","",""     ,"","","","","","","","","","","","","",""   ,"","","",""})
+aAdd(aRegs,{cPerg,"02","Documento Ate ?","","","mv_ch2","C",TamSx3("F2_DOC")[1]  	,0,0,"G","","MV_PAR02",""         ,"","","","",""        ,"","","","",""     ,"","","","","","","","","","","","","",""	  ,"","","",""})
+aAdd(aRegs,{cPerg,"03","Emissao De    ?","","","mv_ch3","D",TamSx3("F2_EMISSAO")[1] ,0,0,"G","","MV_PAR03",""         ,"","","","",""        ,"","","","",""     ,"","","","","","","","","","","","","",""   ,"","","",""})
+aAdd(aRegs,{cPerg,"04","Emissao Ate   ?","","","mv_ch4","D",TamSx3("F2_EMISSAO")[1] ,0,0,"G","","MV_PAR04",""         ,"","","","",""        ,"","","","",""     ,"","","","","","","","","","","","","",""   ,"","","",""})
+aAdd(aRegs,{cPerg,"05","Filial De     ?","","","mv_ch5","C",TamSx3("F2_FILIAL")[1] 	,0,0,"G","","MV_PAR05",""         ,"","","","",""        ,"","","","",""     ,"","","","","","","","","","","","","","SM0","","","",""})
+aAdd(aRegs,{cPerg,"06","Filial Ate    ?","","","mv_ch6","C",TamSx3("F2_FILIAL")[1] 	,0,0,"G","","MV_PAR06",""         ,"","","","",""        ,"","","","",""     ,"","","","","","","","","","","","","","SM0","","","",""})
+aAdd(aRegs,{cPerg,"07","Devoluções    ?","","","mv_ch7","N",01                      ,0,0,"C","","MV_PAR07","Sim"      ,"","","","","Nao"     ,"","","","",""     ,"","","","","","","","","","","","","",""   ,"","","",""})
+aAdd(aRegs,{cPerg,"08","E-Mails       ?","","","mv_ch8","C",99  	                ,0,0,"G","","MV_PAR08",""         ,"","","","",""        ,"","","","",""     ,"","","","","","","","","","","","","",""   ,"","","",""})
+
+CriaSx1(aRegs)
+
+Return .T.
+
+/*/{Protheus.doc}CriaSx1
+
+Regras para chamada do mï¿½todo
+
+@author Ovio Consultoria
+@since 19/06/2019
+@version P12 
+@param 	
+@return	
+/*/ 
+Static Function CriaSx1(aRegs)
+
+Local aAreaAtu	:= GetArea()
+Local aAreaSX1	:= SX1->(GetArea())
+Local nJ		:= 0
+Local nY		:= 0
+
+dbSelectArea("SX1")
+dbSetOrder(1)
+
+For nY := 1 To Len(aRegs)
+	If !MsSeek(aRegs[nY,1]+aRegs[nY,2])
+		RecLock("SX1",.T.)
+		For nJ := 1 To FCount()
+			If nJ <= Len(aRegs[nY])
+				FieldPut(nJ,aRegs[nY,nJ])
+			EndIf
+		Next nJ
+		MsUnlock()
+	EndIf
+Next nY
+
+RestArea(aAreaSX1)
+RestArea(aAreaAtu)
+
+Return(Nil)
