@@ -9,10 +9,10 @@
 @return Nil
 /*/
 //----------------------------------------------------------------------------------------------
-Static Function TBRETFORWF( oProcess )
+User Function TBRETGCTFORWF( oProcess )
 
    /*/ Declaração de variaveis /*/
-   Local aAreaSCR
+   Local aAreaSCR := {}
    Local aAreaCN9
 
    Local lRet := .F.
@@ -191,6 +191,7 @@ Static Function TBRETFORWF( oProcess )
                While !CND->( Eof() ) .And. ( oProcess:oHtml:RetByName( 'WFFILIAL' ) + oProcess:oHtml:RetByName( 'WFCONTRATO' ) + oProcess:oHtml:RetByName( 'WFREVISAO' ) + oProcess:oHtml:RetByName( 'WFNUMMED' ) == CND->CND_FILIAL + CND->CND_CONTRA + CND->CND_REVISA + CND->CND_NUMMED )
                   RecLock( 'CND', .F. )
                   CND->CND_ALCAPR := 'L'
+                  CND->CND_SITUAC := 'A'
                   CND->( MsUnLock() )
                   CND->( DbSkip() )
                End
@@ -218,6 +219,15 @@ Static Function TBRETFORWF( oProcess )
             End
          EndIf
          ElseIf ( nOpc == 3 ) /*/ Medicao /*/
+            CND->( DbSetOrder( 7 ) ) 
+            If CND->( DbSeek( oProcess:oHtml:RetByName( 'WFFILIAL' ) + oProcess:oHtml:RetByName( 'WFCONTRATO' ) + oProcess:oHtml:RetByName( 'WFREVISAO' ) + oProcess:oHtml:RetByName( 'WFNUMMED' ) )   )
+               While !CND->( Eof() ) .And. ( oProcess:oHtml:RetByName( 'WFFILIAL' ) + oProcess:oHtml:RetByName( 'WFCONTRATO' ) + oProcess:oHtml:RetByName( 'WFREVISAO' ) + oProcess:oHtml:RetByName( 'WFNUMMED' )  == CND->CND_FILIAL + CND->CND_CONTRA + CND->CND_REVISA + CND->CND_NUMMED )
+                  RecLock( 'CN9', .F. )
+                  CND->CND_SITUAC := 'E'
+                  CND->( MsUnLock() )
+                  CND->( DbSkip() )
+               End
+            EndIf
       EndIf
    EndIf
 EndIf
@@ -239,11 +249,11 @@ Static Function TBMaAlcDoc(aDocto,dDataRef,nOper,cDocSF1,lResiduo,cItGrp,aItens,
    Local aAreaSCS	:= SCS->(GetArea())
    Local aAreaSCR	:= SCR->(GetArea())
    Local aRetPe	:= {}
-   Local aRetDBM	:= {.F.,0,0,0}
+
    Local nSaldo	:= 0
    Local nCount    := 1
    Local cGrupo	:= If(aDocto[6]==Nil,"",aDocto[6])
-   Local lFirstNiv:= .T.
+
    Local cAuxNivel:= ""
    Local cNextNiv := ""
    Local cNivIgual:= ""
@@ -262,22 +272,19 @@ Static Function TBMaAlcDoc(aDocto,dDataRef,nOper,cDocSF1,lResiduo,cItGrp,aItens,
    Local lIntegDef  := FWHasEAI("MATA120",.T.,,.T.)
    Local lAltpdoc	:= SuperGetMv("MV_ALTPDOC",.F.,.F.)
    Local lCnAglFlg	:= SuperGetMV("MV_CNAGFLG",.F.,.F.)
-   Local lNfLimAl	:= SuperGetMV("MV_NFLIMAL",.F.,.F.)
-   Local cPerfAlc	:= SuperGetMV("MV_PERFALC",.F.,"1")
-   Local lTipoDoc	:= .T.
+
+
    Local lFluig		:= !Empty(AllTrim(GetNewPar("MV_ECMURL",""))) .And. FWWFFluig()
    Local lBlqNivel := .F.
    Local cGrupoSAL	:= ""
    Local cAprovDBM	:= ""
-   Local cMTALCAPR	:= ""
+
    Local lUserNiv	:= .F. //Verifica se existe usuário no mesmo nível - Tipo de Lib por Usuário
    Local lCalMta235 := IsInCallStack("MATA235")
 
-   Local dPrazo	:= Ctod("//")
-   Local dAviso	:= Ctod("//")
+
    Local nRecAprov	:= 0
-   Local lEscalona 	:= .F.
-   Local lEscalonaS	:= .F.
+
    Local lRetCr 		:= .T.
    Local cFilSCR		:= IIf(cTipoDoc $ 'IC|CT|IR|RV',CnFilCtr(cDocto),xFilial("SCR"))
    Local lNewFlg		:= .F.
