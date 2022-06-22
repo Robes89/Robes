@@ -11,7 +11,7 @@
 
 /*
 +------------+----------+--------+----------------+-------+----------------+
-| Programa:  | PdComNim | Autor: |Isaias Gravatal | Data: |   Jul/2021     |
+| Programa:  | PdComNim | Autor: | Ronaldo Robes | Data: |   Jul/2021     |
 +------------+----------+--------+---------------+--------+----------------+
 | Descrição: | Programa de para gerar Pedido de compras com origem do Nimbi|
 +------------+-------------------------------------------------------------+
@@ -161,7 +161,7 @@ EndIf
 					//-----------------------------------------------------------//
 					lRet := IncPed( AllTrim(STR(oObj1:purchaseOrders[nX]:id)) )
 
-					If lRet
+					If lRet .and. .F.
 						//-------------------------------------------------------------//
 						//  Chama Api para alterar status do pedido de compra no Nimbi //
 						//-------------------------------------------------------------//
@@ -191,7 +191,7 @@ Return()
 
 /*
 +------------+----------+--------+----------------+-------+----------------+
-| Programa:  | gPedCab  | Autor: |Isaias Gravatal | Data: |   Jul/2021     |
+| Programa:  | gPedCab  | Autor: |Ronaldo Robes | Data: |   Jul/2021     |
 +------------+----------+--------+---------------+--------+----------------+
 | Descrição: | Função utilizada para coletar dados do cabecalho de         |
 |            | pedido de compra                                            |
@@ -379,7 +379,7 @@ Return(lRet)
 
 /*
 +------------+----------+--------+----------------+-------+----------------+
-| Programa:  | gPedIte  | Autor: |Isaias Gravatal | Data: |   Jul/2021     |
+| Programa:  | gPedIte  | Autor: |Ronaldo Robes | Data: |   Jul/2021     |
 +------------+----------+--------+---------------+--------+----------------+
 | Descrição: | Função utilizada para coletar dados de Itens do pedido      |
 +------------+-------------------------------------------------------------+
@@ -557,7 +557,7 @@ Return(lRet)
 
 /*
 +------------+----------+--------+----------------+-------+----------------+
-| Programa:  | PAltPed  | Autor: |Isaias Gravatal | Data: |   Jul/2021     |
+| Programa:  | PAltPed  | Autor: |Ronaldo | Data: |   Jul/2021     |
 +------------+----------+--------+---------------+--------+----------------+
 | Descrição: | Função utilizada para atualizar status de pedido de compra  |
 |            | no sistema Nimbi                                            |
@@ -726,7 +726,7 @@ Busca e retorna um usuário com base no nome
 
 @return aUser Array com os dados do usuário encontrado
 
-@author Daniel Mendes
+@author 
 @since 25/06/2020
 @version 1.0
 */
