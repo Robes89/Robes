@@ -2,6 +2,7 @@
 #include "rwmake.ch"
 #include "TOTVS.ch"
 #include "TBICONN.ch"
+#INCLUDE "SHELL.CH"
 
 #DEFINE LOGDIRECTORY 'C:\temp\'
 
@@ -10,6 +11,13 @@
 #DEFINE STR0003	'Baixa: '
 #DEFINE STR0004 ' -> Gerada com sucesso...'
 #DEFINE STR0005 ' item '
+
+/*---------------------------------------------------------------------------------*
+ | Func.: TIATF002                                                                 |
+ | Autor: TRIYO  		                                                           |
+ | Data:  25/06/2022                                                               |
+ | Desc:  Função que Importa ativos em lote 					                   |
+ *---------------------------------------------------------------------------------*/
 
 User Function TIATF002()
 	Local aArea      := GetArea()
@@ -48,39 +56,29 @@ User Function TIATF002()
 	RestArea(aArea)
 Return
 
-Static Function Importa()
-	Local cTipo 	:= "01"
 
-	Local nQtdBaixa := 1
-	Local cMotivo 	:= "  "
-	Local cLinha 	:= ""
-	Local cMetDepr 	:= GetMV('MV_ATFDPBX')
+/*---------------------------------------------------------------------------------*
+ | Func.: Importa                                                                  |
+ | Autor: TRIYO  		                                                           |
+ | Data:  25/06/2022                                                               |
+ | Desc:  Função que Importa ativos em lote 					                   |
+ *---------------------------------------------------------------------------------*/
+
+Static Function Importa()
+
 	Local aArea 	:= GetArea()
-	Local cView		As Character
-	Local cBase 	As Character
-	Local cItem 	As Character
-	Local cCliente	As Character
-	Local cLjCli	As Character
-	Local cNumNFProd	As Character
-	Local cTes		As Character
-	Local cNumNF  	As Character
-	Local cSerieNF 	As Character
 	Local cArquivoLog	As Character
-	Local nPercBx	As Numeric
-	local nValNf    As Numeric
-	Local nTotalItem  	As Numeric
 	Local nCont 	As Numeric
-	Local i			As Numeric
-	Local dTbaixa 	As Date
 	Local aCampos   As Array
-	Local aCamposN3   As Array
+
 	Local aDados    As Array
 	Local aCab		As Array
-	Local aAtivo 	As Array
 	Local aParam  	As Array
 	Local aLogAuto	As Array
 	Local lPrim      := .T.
-	Local lSegung	:=.T.
+	Local aErroPlan := {}
+	local nX as Numeric
+
 	Private lMsErroAuto := .F.
 	Private lMsHelpAuto := .T.
 	Private aErro      := {}
@@ -105,18 +103,9 @@ Static Function Importa()
 		cLinha := FT_FREADLN()
 		cLinha := ALLTRIM(cLinha)
 
-		If lPrim .Or. lSegung//considerando que a primeira linha são os campos do cadastros, reservar numa variavel
-			
-			IF lPrim
-				lPrim  :=.F.	
+		If lPrim //considerando que a primeira linha são os campos do cadastros, reservar numa variavel
 				aCampos := Separa(cLinha,";",.T.)
-			Else
-				lSegung  := .F.
-				aCamposN3 := Separa(cLinha,";",.T.)
-			EndIF
-			
-
-			
+				lPrim:=.F.
 		Else// gravar em outra variavel os registros
 			AADD(aDados,Separa(cLinha,";",.T.))
 		EndIf
@@ -130,37 +119,51 @@ Static Function Importa()
 
 	oProcess:SetRegua1(len(aDados)) //guardar novamente a quantidade de registros
 
-
-
-
-
-
-
     /*lançamento para inclusao de mais Ativos 
     ----------------------------------------------*/
     //Quantos registros serão incluídos
 
-      aArea := GetArea()
+	aArea := GetArea()
 
-      nBase   := aScan(aCampos,{ |x| ALLTRIM(x) == "N1_CBASE" })
-      nItem   := aScan(aCampos,{ |x| ALLTRIM(x) == "N1_ITEM" })
-      nChapa  := aScan(aCampos,{ |x| ALLTRIM(x) == "N1_PATRIM" })
-      nqtd:= aScan(aCampos,{ |x| ALLTRIM(x) == "N1_QUANTD" })
-	  nDescric:=aScan(aCampos,{ |x| ALLTRIM(x) == "N1_DESCRIC" }) 
-	  nGrupo := aScan(aCampos,{ |x| ALLTRIM(x) == "N1_GRUPO" })
-	  nValor  :=  aScan(aCampos,{ |x| ALLTRIM(x) == "N1_VLAQUIS" })
+	nBase   := aScan(aCampos,{ |x| ALLTRIM(x) == "N1_CBASE" })
+	nItem   := aScan(aCampos,{ |x| ALLTRIM(x) == "N1_ITEM" })
+	nChapa  := aScan(aCampos,{ |x| ALLTRIM(x) == "N1_PATRIM" })
+	nqtd:= aScan(aCampos,{ |x| ALLTRIM(x) == "N1_QUANTD" })
+	nDescric:=aScan(aCampos,{ |x| ALLTRIM(x) == "N1_DESCRIC" }) 
+	nGrupo := aScan(aCampos,{ |x| ALLTRIM(x) == "N1_GRUPO" })
+	nValor  :=  aScan(aCampos,{ |x| ALLTRIM(x) == "N1_VLAQUIS" })
+	nAqui    :=  aScan(aCampos,{ |x| ALLTRIM(x) == "N1_AQUISIC" }) 
+ 	nForn :=  aScan(aCampos,{ |x| ALLTRIM(x) == "N1_FORNEC" })  
+	nLoja := aScan(aCampos,{ |x| ALLTRIM(x) == "N1_LOJA" })   
+	nSerie := aScan(aCampos,{ |x| ALLTRIM(x) == "N1_NSERIE" })  
+	nFiscal := aScan(aCampos,{ |x| ALLTRIM(x) == "N1_NFISCAL" })   
+	nCodAnt :=  aScan(aCampos,{ |x| ALLTRIM(x) == "N1_XCODANT" }) 
+	nHisto := aScan(aCampos,{ |x| ALLTRIM(x) == "N3_HISTOR" })  
+	nDtIni := aScan(aCampos,{ |x| ALLTRIM(x) == "N3_DINDEPR" })  
+	nVorig1 := aScan(aCampos,{ |x| ALLTRIM(x) == "N3_VORIG1" }) 
+
+
+
       dIndDepr := RetDinDepr(dDataBase)
 	For nX :=1 To len(adados)
-      aCab := {}
-      AAdd(aCab,{"N1_CBASE"   ,   adados[nx,nBase]   ,NIL})
-      AAdd(aCab,{"N1_ITEM"    , adados[nx,nItem]       ,NIL})
-      AAdd(aCab,{"N1_AQUISIC" , dDataBase ,NIL})
-      AAdd(aCab,{"N1_DESCRIC" , adados[nx,nDescric]   ,NIL})
-      AAdd(aCab,{"N1_QUANTD"  , adados[nx,nQtd]      ,NIL})
-      AAdd(aCab,{"N1_CHAPA"   , adados[nx,nChapa]      ,NIL})
-      AAdd(aCab,{"N1_PATRIM"  , adados[nx,nChapa]     ,NIL})
-	  AAdd(aCab,{"N1_GRUPO"  , adados[nx,nGrupo]     ,NIL})
+		aCab := {}
+		AAdd(aCab,{"N1_CBASE"   ,   adados[nx,nBase]   ,NIL})
+		AAdd(aCab,{"N1_ITEM"    , adados[nx,nItem]       ,NIL})
+		AAdd(aCab,{"N1_AQUISIC" , CTOD(adados[nx,nAqui] ) ,NIL})
+		AAdd(aCab,{"N1_DESCRIC" , adados[nx,nDescric]   ,NIL})
+		AAdd(aCab,{"N1_QUANTD"  , val(adados[nx,nQtd])      ,NIL})
+		AAdd(aCab,{"N1_CHAPA"   , adados[nx,nChapa]      ,NIL})
+		AAdd(aCab,{"N1_PATRIM"  , 'N'    ,NIL})
+		AAdd(aCab,{"N1_GRUPO"  , adados[nx,nGrupo]     ,NIL})
+		AAdd(aCab,{"N1_VLAQUIS"  , val(adados[nx,nValor])      ,NIL})
+      	AAdd(aCab,{"N1_FORNEC"   , adados[nx,nForn]      ,NIL})
+      	AAdd(aCab,{"N1_LOJA"  , adados[nx,nLoja]    ,NIL})
+	  	AAdd(aCab,{"N1_NSERIE"  , adados[nx,nSerie]     ,NIL})
+		aAdd(aCab,{"N1_NFISCAL"  , adados[nx,nFiscal]      ,NIL})
+      	//AAdd(aCab,{"N1_XCODANT"   , adados[nx,nCodAnt]      ,NIL})
+     
 
+			
       //adicione aqui os campos desejados
 
       aItens := {}
@@ -169,10 +172,11 @@ Static Function Importa()
                   {"N3_ITEM"    , adados[nx,nItem]       ,NIL},;
                   {"N3_TIPO"    , "01"       ,NIL},;
                   {"N3_TPSALDO"   , "1"         ,NIL},;
-                  {"N3_HISTOR"  ,  adados[nx,nDescric]     ,NIL},;
-                  {"N3_VORIG1"  , adados[nx,nValor]      ,NIL}})
+                  {"N3_HISTOR"  ,  adados[nx,nHisto]     ,NIL},;
+                  {"N3_VORIG1"  , val(adados[nx,nVorig1])      ,NIL},;
+				  {"N3_DINDEPR"  , CTOD(adados[nx,nDtIni])      ,NIL}})
                   //adicione acima os campos desejados
-	Next nX
+	
       //Controle de transacao
       Begin Transaction
 
@@ -181,23 +185,65 @@ Static Function Importa()
         conOut('FIM' +Time())
 
         If lMsErroAuto 
-             MostraErro()
-             DisarmTransaction()
-        else
-          ConfirmSx8()
-          conOut('INCLUIDO ATIVO N3_CBASE: '+ cBase + ", N3_ITEM : "+cItem+ ", N3_CUSTBEM : "+cCusto+ ", N3_SUBCCON : "+cSubCon+ ", N3_CLVLCON : "+cClvlCon)
-        ENDIF    
-
+             	IF !ExistDir(LOGDIRECTORY)
+						MakeDir(LOGDIRECTORY)
+				EndIF
+				cArquivoLog	:= StrZero(Val(aDados[nx,nBase]),9)+'-'+aDados[nx,nItem]
+				aLogAuto    := {}
+				cLogAuto    := MostraErro("\x_erros\", "nome_do_arquivo")
+				
+				Aadd(aErroPlan, {cArquivoLog,cLogAuto})
+				
+				cLogAuto:= ''
+					       
+        ENDIF  
+	  End Transaction  
+	Next nX
         RestArea(aArea)
-      End Transaction
-
-      //Modificando campos para segunda execução
-      cCusto  :="CENTR0002"
-      cSubCon :="000000002"
-      cClvlCon:="000000002"
-
+   
     
+  	If !Empty(aErroPlan) .and. MsgYesNo("Foram encontrados erros deseja gerar relatorio Xml ?","") 
+		U_TIATFREL(aErroPlan)
+ 	EndIF
+Return
 
-  RESET ENVIRONMENT
+/*---------------------------------------------------------------------------------*
+ | Func.: TIATFREL                                                                 |
+ | Autor: TRIYO  		                                                           |
+ | Data:  25/06/2022                                                               |
+ | Desc:  Função que Imprime relatorio generico sobre erros na importação          |
+ *---------------------------------------------------------------------------------*/
+
+User Function TIATFREL(aErroPlan)
+
+Local oExcel    := FWMSEXCEL():New()
+Local nW := 0 
+Local cNomeArq  := GetNextAlias() + '.XML'
+
+Default aErroPlan := {}
+
+
+oExcel:AddworkSheet("Erro Ativo")
+oExcel:AddTable ("Erro Ativo","Erro Ativo")
+
+oExcel:AddColumn("Erro Ativo","Erro Ativo","Ativo",1,1)
+oExcel:AddColumn("Erro Ativo","Erro Ativo","Erro",1,1)
+For nW := 1 to Len(aErroPlan)	
+	oExcel:AddRow("Erro Ativo","Erro Ativo", { aErroPlan[nW,1],;
+											aErroPlan[nW,2]})
+Next	
+	
+	
+	//FClose(nHandle)
+	
+	If !Empty(oExcel:aWorkSheet)
+
+		oExcel:Activate()
+		oExcel:GetXMLFile(cNomeArq)
+		CpyS2T( cNomeArq, GetTempPath(.T.), .T. ) 
+		ShellExecute( "OPEN", "EXCEL", GetTempPath(.T.)  + cNomeArq, "", SW_SHOWMAXIMIZED )
+		CpyS2T("\SYSTEM\"+cNomeArq, LOGDIRECTORY  )
+
+	EndIf
 
 Return
