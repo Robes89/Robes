@@ -76,6 +76,16 @@ Static Function Importa()
 	Local aParam  	As Array
 	Local aLogAuto	As Array
 	Local lPrim      := .T.
+	Local cArquivoLog	As Character
+	Local nCont 	As Numeric
+	Local aCampos   As Array
+
+
+
+	Local aErroPlan := {}
+	local nX as Numeric
+
+
 	Private lMsErroAuto := .F.
 	Private lMsHelpAuto := .T.
 	Private aErro      := {}
@@ -114,22 +124,22 @@ Static Function Importa()
 	//utilizaremos a aScan para localizar a posição dos campos na variavel que armazenará o nome dos campos
 	cNumNF		:= aScan(aCampos,{ |x| ALLTRIM(x) == "NFE" })
 	cSerieNF	:= aScan(aCampos,{ |x| ALLTRIM(x) == "SERIE" })
-	cItemNf		:= aScan(aCampos,{ |x| ALLTRIM(x) == "ITEM" })
+	cItemNf		:= aScan(aCampos,{ |x| ALLTRIM(x) == "N6_CITEM" })
 	cCliente	:= aScan(aCampos,{ |x| ALLTRIM(x) == "COD_CLIENTE" })
 	cLjCli		:= aScan(aCampos,{ |x| ALLTRIM(x) == "LJ_CLIENTE" })
-	dTbaixa		:= aScan(aCampos,{ |x| ALLTRIM(x) == "DT_BAIXA" })
-	cNumNFProd	:= aScan(aCampos,{ |x| ALLTRIM(x) == "COD_PRODUTO" })
+	dTbaixa		:= aScan(aCampos,{ |x| ALLTRIM(x) == "N6_DTBAIX" })
+	cNumNFProd	:= aScan(aCampos,{ |x| ALLTRIM(x) == "N6_CBASE" })
 	nQtdBaixa	:= aScan(aCampos,{ |x| ALLTRIM(x) == "QTD_BAIXA" })
 	nTotalItem	:= aScan(aCampos,{ |x| ALLTRIM(x) == "VALOR_BAIXA" })
 	cTes		:= aScan(aCampos,{ |x| ALLTRIM(x) == "TES" })
 	cCondPag	:= aScan(aCampos,{ |x| ALLTRIM(x) == "COND_PAG" })
-	cMOtivo	:= aScan(aCampos,{ |x| ALLTRIM(x) == "MOTIVO" })
-	nValNf	:= aScan(aCampos,{ |x| ALLTRIM(x) == "VALNF" })
+	cMOtivo	:= aScan(aCampos,{ |x| ALLTRIM(x) == "N6_MOTIVO" })
+	
 
 	oProcess:SetRegua1(len(aDados)) //guardar novamente a quantidade de registros
 
 	For i:=1 to Len(aDados)
-		oProcess:IncRegua1("Realizando a Baixa NFe:"+StrZero(Val(aDados[i,cNumNF]),9)+'-'+aDados[i,cSerieNF])
+		oProcess:IncRegua1("Realizando a Baixa ativo:")
 
 		nQuant := VAL(aDados[i,nQtdBaixa])
 		cView   := GetNextAlias()
@@ -222,16 +232,25 @@ Static Function Importa()
 				MsExecAuto({|a,b,c,d|ATFA036(a,b,c,,,d)},aCab,aAtivo,3,aParam)
 				//Caso encontre erro grava log
 				IF lMsErroAuto
-					IF !ExistDir(LOGDIRECTORY)
+				IF !ExistDir(LOGDIRECTORY)
 						MakeDir(LOGDIRECTORY)
-					EndIF
-					cArquivoLog	:= StrZero(Val(aDados[i,cNumNF]),9)+'-'+aDados[i,cSerieNF]+'-'+StrZero(Val(aDados[i,cItemNf]),4)+'-DATA-'+Dtos(Date())+'-HORA-'+SubStr(Time(),1,2)+'-MINUTOS-'+SubStr(Time(),4,2)+'.log'
-					aLogAuto    := {}
-					aLogAuto    := MostraErro()
-					MemoWrite(LOGDIRECTORY+cArquivoLog,aLogAuto)
 				EndIF
-			ENDIF	
-		ENDIF
+				cArquivoLog	:= StrZero(Val(aDados[i,nBase]),9)+'-'+aDados[i,nItem]
+				aLogAuto    := {}
+				cLogAuto    := MostraErro("\x_erros\", "nome_do_arquivo")
+				
+				Aadd(aErroPlan, {cArquivoLog,cLogAuto})
+				
+				cLogAuto:= ''
+					       
+        ENDIF  
+	  End Transaction  
 	Next i
-	RestArea(aArea)
+        RestArea(aArea)
+   
+    
+  	If !Empty(aErroPlan) .and. MsgYesNo("Foram encontrados erros deseja gerar relatorio Xml ?","") 
+		U_TIATFREL(aErroPlan)
+ 	EndIF
 Return
+

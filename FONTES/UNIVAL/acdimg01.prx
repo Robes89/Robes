@@ -97,13 +97,13 @@ For nX := 1 to nCopias
 	EndIf
 	cCodigo := Alltrim(cCodigo)
 	cTipoBar := 'MB07' //128
-	If ! Usacb0("01")
+	/*If ! Usacb0("01")
 		If Len(cCodigo) == 8
 			cTipoBar := 'MB03'
 		ElseIf Len(cCodigo) == 13
 			cTipoBar := 'MB04'
 		EndIf
-	EndIf
+	EndIf*/
 	MSCBBEGIN(1,6)
 	
 	MSCBSAY(15,07, AllTrim(SB1->B1_COD), "N", "0", "020,030")
