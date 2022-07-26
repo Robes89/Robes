@@ -24,7 +24,7 @@
 
 User Function MT110ROT()
 
- 
+
 AAdd( aRotina, { 'Status Nimbi', 'U_StNIMB()', 0, 4 } )
 
 Return aRotina 
@@ -32,7 +32,7 @@ Return aRotina
 User Function StNIMB()
 
    Local aLegenda := {}
- 
+
     //Monta as legendas (Cor, Legenda)
     If C1_XSTAT == "0" .or. C1_XSTAT == " "
          aAdd(aLegenda,{"BR_AMARELO",      "Pendente Integração"})

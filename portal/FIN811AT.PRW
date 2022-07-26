@@ -50,7 +50,7 @@ Private aRetorno := {}
                 FINA811(0,aVetor)
             EndIF
         ENDIF             
-       FWP->(DbSkip())
+       FWP->(DbSkip()) 
     ENDDO
 Return aRetorno
 

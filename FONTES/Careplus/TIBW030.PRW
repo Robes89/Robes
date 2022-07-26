@@ -1,6 +1,13 @@
 #INCLUDE "RPTDEF.CH"
 #INCLUDE "PROTHEUS.CH"
 #INCLUDE "FWPRINTSETUP.CH"
+#INCLUDE "XMLXFUN.CH"
+#INCLUDE "TOTVS.CH"
+#INCLUDE "AP5MAIL.CH"
+#INCLUDE "FONT.CH"
+#INCLUDE "TBICONN.CH"
+#INCLUDE "TBICODE.CH"
+#INCLUDE "APWIZARD.CH"
 
 STATIC nRemType := GetRemoteType()
 
@@ -35,7 +42,7 @@ If U_LibWFPC()
 					{|| U_TIBW030Send(cNumPC)})
 		EndIf
 	Else
-		Help('', 1, 'TIBW030',, 'Nï¿½o foi encontrado o arquivo de template para envio do processo de workflow!', 1, 0)	
+		Help('', 1, 'TIBW030',, 'Nao foi encontrado o arquivo de template para envio do processo de workflow!', 1, 0)	
 	EndIf
 
 Endif
@@ -120,6 +127,11 @@ Local nx 		:= 0
 Local _aUsr		:= {}
 Local cEndpoint := 'http://' + cHttpSrv + If(Right(cHttpSrv, 1) <> '/', '/', '')
 Local cDirHTTP  := "\workflow\emp"+Alltrim(cEmpAnt)+"\process\"
+Local cDirHTTP2 := "\workflow\emp"+Alltrim(cEmpAnt)+"\process\"
+
+Local cError   := ""
+Local cWarning := ""
+Local oScript
 
 Default cNumPC  := SC7->C7_NUM
 
@@ -134,9 +146,11 @@ If U_LibWFPC()
 	If nRemType == 2 // REMOTE_LINUX
 		cArq := '/WEB/TEMPLATE/WFA030.HTML'	 
 		cArqLink := '/WEB/TEMPLATE/WFLink.HTML'	
+		cArq2 := '/WEB/TEMPLATE/WFLOGIN.HTML'	 	
 	Else  
 		cArq := '\WEB\TEMPLATE\WFA030.HTML' 
 		cArqLink := '\WEB\TEMPLATE\WFLink.HTML'
+		cArq2 := '\WEB\TEMPLATE\WFLOGIN.HTML' 
 	Endif
 	
 	// -------------------------------------------
@@ -173,7 +187,7 @@ If U_LibWFPC()
 			
 			DBUseArea(.T.,"TOPCONN",TcGenQry(,,cQry),cAliasQry,.T.,.T.)
 			
-			(cAliasQry)->(DBEval({|| If(CR_STATUS $ '02|04', AAdd(aDoctos, {CR_STATUS, nRecSCR}), NIL)},, {|| !Eof()}))
+			(cAliasQry)->(DBEval({|| If((cAliasQry)->CR_STATUS $ '02|04', AAdd(aDoctos, {(cAliasQry)->CR_STATUS, nRecSCR}), NIL)},, {|| !Eof()}))
 			(cAliasQry)->(DBCloseArea())
 	
 			For nCount := 1 To Len(aDoctos)
@@ -237,7 +251,7 @@ If U_LibWFPC()
 					oProcess:oHtml:ValByName('dEmissao'		, SC7->C7_EMISSAO)
 					oProcess:oHtml:ValByName('cCodFor'		, SC7->(C7_FORNECE + '/' + C7_LOJA))
 					oProcess:oHtml:ValByName('cNomFor' 		, SA2->A2_NOME)
-					If PswSeek(SCR->CR_USER) .And. !Empty(PswRet()[1,4])
+					If PswSeek(SC7->C7_USER) .And. !Empty(PswRet()[1,4])
 						oProcess:oHtml:ValByName('cComprador'	,AllTrim(PswRet()[1,4]))
 					Else
 						oProcess:oHtml:ValByName('cComprador'	, 'Nï¿½o Encontrado')
@@ -371,6 +385,45 @@ If U_LibWFPC()
 					// do e-mail de link:
 					// ---------------------------------------------------------
 					cMailId := oProcess:Start(cDirHTTP)
+
+					// ---------------------------------------------------------
+				    // Nova tarefa para envio do e-mail com
+				    // o link do processo:
+					// ---------------------------------------------------------
+					oProcess:NewTask('WFA013', cArq2)
+					PswOrder(1) 
+					cUser := SCR->CR_USER
+					If PswSeek(SCR->CR_USER)
+						_cUser := AllTrim(PswRet()[1,2])
+						_cPass := AllTrim(PswRet()[1,3])
+						//_cLink     := cEndpoint + 'emp' + cEmpAnt + '/' + cPastaHTM + '/' + cMailId + '.htm'
+						_cLink     := cMailId + '.htm'
+						oProcess:oHtml:ValByName('cLink', _cLink)
+						oProcess:oHtml:ValByName('cUserAprov', _cUser)
+						oProcess:oHtml:ValByName('cCoduser', cUser)
+						oProcess:oHtml:ValByName('cPassAprov', _cPass)
+						cMailId2 := oProcess:Start(cDirHTTP2)
+					Endif
+
+					If IsBlind()
+						_cPass2 := U_CpSenha(cUser)
+					Else
+						_cPass2 := PswMD5GetPass(cUser) 
+					Endif
+
+					_cHtml     	:= cArq2 //cDirHTTP2 + cMailId2 + '.htm' 
+					_cBodyJob 	:= u_ExtractHTM(_cHtml)
+					_cBodyJob 	:= STRTRAN(_cBodyJob,'%cLink%',_cLink)
+					_cBodyJob 	:= STRTRAN(_cBodyJob,'%cUserAprov%',_cUser)
+					_cBodyJob 	:= STRTRAN(_cBodyJob,'%cCoduser%',cUser)
+					_cBodyJob 	:= STRTRAN(_cBodyJob,'%cPassAprov%', _cPass2)
+					//_cBodyJob 	:= STRTRAN(_cBodyJob,'name="CUSERAPROV" TEMPLATE_name="usuarioid" ','name="usuarioid" ')
+					//_cBodyJob 	:= STRTRAN(_cBodyJob,'name="CPASSAPROV" TEMPLATE_name="senhaid" ','name="senhaid" ')
+					_cHtml     	:= cDirHTTP2 + 'x' + cMailId2 + '.htm'
+
+					nHdl := FCreate(_cHtml)
+					FWrite(nHdl,_cBodyJob,Len(_cBodyJob))
+					FClose(nHdl)
 	
 					// ---------------------------------------------------------
 				    // Nova tarefa para envio do e-mail com
@@ -383,9 +436,9 @@ If U_LibWFPC()
 					// Atualiza os dados no HTML referente 
 					// a mensagem com o link:
 					// ---------------------------------------------------------
-					cUrl     := cEndpoint + 'emp' + cEmpAnt + '/' + cPastaHTM + '/' + cMailId + '.htm'
+					cUrl     := cEndpoint + 'emp' + cEmpAnt + '/' + cPastaHTM + '/' + 'x' + cMailId2 + '.htm'
 					cUrlImg  := cEndpoint + 'emp' + cEmpAnt + '/' + cPastaHTM + '/' 
-	
+	 
 					oProcess:oHtml:ValByName('cLink', cUrl)
 					oProcess:oHtml:ValByName('cUrlImg', cUrlImg)	
 				
@@ -393,12 +446,14 @@ If U_LibWFPC()
 					// Determina o destinatario do e-mail de
 					// aprovacao:
 					// ---------------------------------------------------------
+
 					oProcess:cTo := cMailApr
+					oProcess:cBCC := "vinicius.santos@triyo.com.br;consultoria@vcsinfo.com.br" 
 	
 					// ---------------------------------------------------------
 					// Titulo para o email:
 					// ---------------------------------------------------------
-					oProcess:cSubject := 'Aprovacao de Pedido de Compra No. ' + cNumPC
+					oProcess:cSubject  := 'Aprovacao de Pedido de Compra No. ' + cNumPC
 					
 					//----------------------------------------
 					// Verifica se existem arquivos no banco de conhecimento vinculados ao PC e
@@ -425,6 +480,13 @@ If U_LibWFPC()
 					// ---------------------------------------------------------
 					oProcess :Free()
 					oProcess := NIL
+
+					_cHtml2     := cArqLink
+					_cBodyJob 	:= u_ExtractHTM(_cHtml2)
+					_cBodyJob 	:= STRTRAN(_cBodyJob,'%cLink%',cUrl)
+					_cBodyJob 	:= STRTRAN(_cBodyJob,'%cUrlImg%',cUrlImg)
+					U_TkSendMail(cMailApr, 'Aprovacao de Pedido de Compra No. ' + cNumPC, _cBodyJob)
+
 				EndIf
 			Next nCount
 		Endif  
@@ -579,8 +641,8 @@ If 	SCR->(DbSeek(xFilial('SCR') + 'PC' + cNumSCR + cCodAprov)) .OR.;
 	
 	CONOUT("DEBUG: " + SC7->C7_NUM)
 	
-	SAL->( DbSetOrder(3) )
-	SAL->( DbSeek(xFilial("SAL")+SC7->C7_APROV+SAK->AK_COD) )
+	SAL->( DbSetOrder(4) )
+	SAL->( DbSeek(xFilial("SAL")+SCR->CR_APROV+SAK->AK_COD) )
 
 	// -----------------------------------------------
 	// Avalia o Status do Documento a ser liberado
@@ -802,12 +864,13 @@ If 	SCR->(DbSeek(xFilial('SCR') + 'PC' + cNumSCR + cCodAprov)) .OR.;
 		//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 		PcoFinLan("000055")
 
-		If lSendMsg
+		//If lSendMsg
 			CONOUT("DEBUG")
 			CONOUT("cTitle: " + cTitle)
 			CONOUT("cMsg: " + cMsg)
-			U_TIBW030Msg(cTitle, cMsg, GetMv('FT_MAILCOM',,'COMPRAS@CAREPLUS.COM.BR'), cNumPC, cObserv)
-		EndIf
+			//U_TIBW030Msg(cTitle, cMsg, GetMv('FT_MAILCOM',,'COMPRAS@CAREPLUS.COM.BR'), cNumPC, cObserv)
+			U_TIBW030Msg(cTitle, cMsg,cMailCompr, cNumPC, cObserv)
+		//EndIf
 
 	EndIf
 EndIf
@@ -880,6 +943,10 @@ Else
 	cArqMsg := '\WEB\TEMPLATE\WFMsg.HTML'
 Endif
 
+_cHtml2     := cArqMsg
+_cBodyJob 	:= u_ExtractHTM(_cHtml2) 
+
+
 // ---------------------------------------------------------
 // Envia e-mail ao comprador notificando a liberacao
 // do pedido de compra
@@ -892,6 +959,10 @@ oPrcMsg:oHtml:ValByName('cTitle', cTitle)
 oPrcMsg:oHtml:ValByName('cMsg'	, cMsg)
 oPrcMsg:oHtml:ValByName('cOBS'	, cObs)
 
+_cBodyJob 	:= STRTRAN(_cBodyJob,'%cTitle%',cTitle)
+_cBodyJob 	:= STRTRAN(_cBodyJob,'%cMsg%',cMsg)
+_cBodyJob 	:= STRTRAN(_cBodyJob,'%cOBS%',cObs)
+
 
 DBSelectArea("SC7")
 SC7->(DBSetOrder(1))
@@ -899,34 +970,46 @@ SC7->(DBSeek(xFilial("SC7")+cNumPC))
 
 While !SC7->(Eof()) .And. SC7->(C7_FILIAL+C7_NUM) == xFilial('SC7')+cNumPC						
 	// -- Item
-	AAdd(oPrcMsg:oHtml:ValByName('PED.cItem')		, SC7->C7_ITEM )			
+	AAdd(oPrcMsg:oHtml:ValByName('PED.cItem')		, SC7->C7_ITEM )
+	_cBodyJob 	:= STRTRAN(_cBodyJob,'%PED.cItem%',SC7->C7_ITEM)			
 	// -- Produto
 	AAdd(oPrcMsg:oHtml:ValByName('PED.cCodPro')	, SC7->C7_PRODUTO )
+	_cBodyJob 	:= STRTRAN(_cBodyJob,'%PED.cCodPro%',SC7->C7_PRODUTO)
 	// -- Descrocap do Produto
 	AAdd(oPrcMsg:oHtml:ValByName('PED.cDesPro')	, SC7->C7_DESCRI )
+	_cBodyJob 	:= STRTRAN(_cBodyJob,'%PED.cDesPro%',SC7->C7_DESCRI)
 	// -- Observaï¿½ï¿½o 
 	AAdd(oPrcMsg:oHtml:ValByName('PED.CObservacao'), SC7->C7_OBS )
+	_cBodyJob 	:= STRTRAN(_cBodyJob,'%PED.CObservacao%',SC7->C7_OBS)
 	// -- C.Custo
 	AAdd(oPrcMsg:oHtml:ValByName('PED.cCCusto')	, SC7->C7_CC )
+	_cBodyJob 	:= STRTRAN(_cBodyJob,'%PED.cCCusto%',SC7->C7_CC)
 	// -- Unidade de Medida
 	AAdd(oPrcMsg:oHtml:ValByName('PED.cCUMedida')	, SC7->C7_UM )
+	_cBodyJob 	:= STRTRAN(_cBodyJob,'%PED.cCUMedida%',SC7->C7_UM)
 	// -- Quantidade
 	AAdd(oPrcMsg:oHtml:ValByName('PED.nQtde')		, Transform(SC7->C7_QUANT, PesqPict('SC7', 'C7_QUANT')))
+	_cBodyJob 	:= STRTRAN(_cBodyJob,'%PED.nQtde%',Transform(SC7->C7_QUANT, PesqPict('SC7', 'C7_QUANT')))
 	// -- Preï¿½o Unitï¿½rio
 	AAdd(oPrcMsg:oHtml:ValByName('PED.nValUnit')	, cSimbMoed + Transform(SC7->C7_PRECO, PesqPict('SC7', 'C7_PRECO')))
+	_cBodyJob 	:= STRTRAN(_cBodyJob,'%PED.nValUnit%',cSimbMoed + Transform(SC7->C7_PRECO, PesqPict('SC7', 'C7_PRECO')))
 	// -- ICMS
 	AAdd(oPrcMsg:oHtml:ValByName('PED.nValDesc')	, cSimbMoed + Transform(SC7->C7_VLDESC, PesqPict('SC7', 'C7_TOTAL')))
+	_cBodyJob 	:= STRTRAN(_cBodyJob,'%PED.nValDesc%',cSimbMoed + Transform(SC7->C7_VLDESC, PesqPict('SC7', 'C7_TOTAL')))
 	// -- Valor TOtal
 	AAdd(oPrcMsg:oHtml:ValByName('PED.nValTot')	, cSimbMoed + Transform(SC7->(C7_TOTAL - C7_VLDESC), PesqPict('SC7', 'C7_TOTAL')))
+	_cBodyJob 	:= STRTRAN(_cBodyJob,'%PED.nValTot%',cSimbMoed + Transform(SC7->(C7_TOTAL - C7_VLDESC), PesqPict('SC7', 'C7_TOTAL')))
 	// -- Data de Entrega
 	AAdd(oPrcMsg:oHtml:ValByName('PED.dDtEntr')	, DTOC(SC7->C7_DATPRF) )
+	_cBodyJob 	:= STRTRAN(_cBodyJob,'%PED.dDtEntr%',DTOC(SC7->C7_DATPRF))
 	
 	SC7->(DbSkip()) 
 
 EndDo
 
 //-- Determina o destinatario do e-mail
-oPrcMsg:cTo := cMail
+oPrcMsg:cTo  := cMail + ";"+ GetMv('FT_MAILCOM',,'COMPRAS@CAREPLUS.COM.BR')
+oPrcMsg:cBCC := "vinicius.santos@triyo.com.br;consultoria@vcsinfo.com.br" 
 
 //-- Assunto do e-mail:
 oPrcMsg:cSubject := cTitle
@@ -938,7 +1021,11 @@ oPrcMsg:Start()
 oPrcMsg :Free()
 oPrcMsg := NIL
 
+
+U_TkSendMail(cMail + ";"+ GetMv('FT_MAILCOM',,'COMPRAS@CAREPLUS.COM.BR'), cTitle, _cBodyJob)
+
 RestArea(aArea)
+
 
 Return
 
@@ -1225,7 +1312,261 @@ Static Function CPVALSCR()
 
 Return ( lRet )
 
+/*
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÉÍÍÍÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍ»±±
+±±ºFuncao    ³ExtractHTMºAutores³vINICIUS Santos     º Data ³  04.Out.21  º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºDesc.     ³ Funcao para extrair o conteudo de um arquivo HTML, despre_ º±±
+±±º          ³ zando os caracteres especiais (CHR(10) e CHR(13))          º±±
+±±ÈÍÍÍÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+*/
+User Function ExtractHTM( _cHTML )
+Local _cRet   := ''
+Local _nOpen  := 0
+Local _cLinha := ''
 
+//-- Testa a abertura do arquivo...
+_nOpen := FOpen( _cHTML )
+If FError() <> 0
+	ConOut( "PROBLEMAS NA ABERTURA DO ARQUIVO " + _cHTML )  //"PROBLEMAS NA ABERTURA DO ARQUIVO "
+Else
+	//-- Fecha o arquivo para abri-lo via FT_FUse
+	FClose( _nOpen )
+	
+	//-- Abre o arquivo e extrai o conteudo...
+	_nOpen := FT_FUse( _cHTML )
+	While !FT_FEof()
+		_cLinha := FT_FReadLn()
+		_cRet   += _cLinha + Chr(13) + Chr(10)
+		FT_FSkip()
+	End
+	FClose( _nOpen )
+EndIf
+
+Return( _cRet )
+
+
+
+User Function CpSenha(cUser)
+
+Local cPswFile := "sigapss.spf" //Tabela de Senhas
+Local cPswId   := ""
+Local cPswName := ""
+Local cPswPwd  := ""
+Local cPswDet  := ""
+//Local lEncrypt := .F.
+//Local aPswDet
+//Local cOldPsw
+//Local cNewPsw
+Local nPswRec
+Local cUserPsw
+
+SPF_Close("SIGAPSS.SPF")
+
+PswOrder(1) // Pesquisa por login
+PswSeek(cUser,.T.)
+
+//Abro a Tabela de Senhas
+//spf_CanOpen(cPswFile) 
+
+aUser := PswRet(1)
+cUsrId := aUser[1][1] // ID do usuario.
+
+//Procuro pelo usuario Base
+//nPswRec  := spf_Seek( cPswFile , "2U"+cUsrId , 1 ) 
+nPswRec := spf_Seek( cPswFile , "3U"+cUsrId , 1 ) 	
+//Obtenho as Informacoes do usuario Base ( retornadas por referencia na variavel cPswDet)
+if nPswRec > 0
+	//spf_GetFields( @cPswFile , @nPswRec , @cPswId , @cPswName , @cPswPwd , @cPswDet )
+	cUserPsw := SUBSTR(PSWENCRIPT(aUser[1][3],1),9,20)
+Endif
+
+If Empty(cUserPsw)
+	PswMD5GetPass(cUser)
+Endif 
+
+Return cUserPsw
+
+/*/{Protheus.doc} TK510HTM
+	fun;'ao padr'ao tmk para simular envio de e-mail
+	@type function
+	@author Vinicius Santos
+	@since 09/06/2021
+	@return caracter 
+
+/*/
+
+User Function TkSendMail(cEmailDest ,cAssunto	,cMensagem,cEmailTo,cEmailCc,cEmailCco,lOperAuth)
+
+Local cAccount	 := SuperGetMv("MV_RELAUSR") 	//Conta do remetente
+Local cPassword	 := SuperGetMv("MV_RELAPSW") 	//Senha do remetente
+Local cCtaEmail	 := SuperGetMv("MV_RELACNT")	//Conta Autenticacao Ex.: fuladetal@fulano.com.br
+Local cServer	 := "smtp.office365.com" //SuperGetMV("MV_RELSERV")
+Local cFrom	     := "WF CAREPLUS" //SuperGetMv("MV_RELACNT")
+
+Local cEmail	 := ""							// E-mail de destino
+Local lResult  	 := .F.							// Se a conexao com o SMPT esta ok
+Local cError     := ""							// String de erro
+Local lRelauth   := SuperGetMv("MV_RELAUTH")		// Parametro que indica se existe autenticacao no e-mail
+Local lRet	     := .F.							// Se tem autorizacao para o envio de e-mail
+Local cConta     := ALLTRIM(cAccount)				// Conta de acesso 
+Local cSenha2     := ALLTRIM(cPassword)	        // Senha de acesso
+Local nX		 := 0
+Local aAttch	 := {}  
+Local lErrAtt	 := .F.
+Local cToken	 := ""
+
+Local oServer  									//Objeto para o TmailManager
+Local oMessage									//Objeto para o TmailMessenger
+Local nErr      := 0							//Variavel para controle de erro
+Local nSMTPTime := GetNewPar("MV_RELTIME",60)	// TIMEOUT PARA A CONEXAO
+Local lSSL 		:= GetNewPar("MV_RELSSL",.F.)	// VERIFICA O USO DE SSL
+Local lTLS 		:= GetNewPar("MV_RELTLS",.F.)	// VERIFICA O USO DE TLS
+Local nSMTPPort := 587 //GetNewPar("MV_PORSMTP",25)	// PORTA SMTP
+
+Default cEmailDest := ""
+Default cEmailTo   := ""
+Default cEmailCc   := ""
+Default cEmailCco  := "vinicius.santos@triyo.com.br;consultoria@vcsinfo.com.br"						// E-mail de copia oculta
+Default lOperAuth  := .F.						//Ser?utilizado a conta/senha informadas no cadastro do operador
+
+If Empty(cEmailTo)
+	cEmailTo := cEmailDest
+Else
+	cEmailCc += cEmailDest
+EndIf
+
+If lSSL .Or. lTLS
+
+	// Verificar autenticacao e retira o conteudo apos o @
+	If !lOperAuth .And. lSSL .And. lRelauth .And. At("@",cConta)>0
+		cConta := Subs(cConta,1,At("@",cConta)-1)
+	EndIf
+	
+	// Objeto de Email
+	oServer := TMailManager():New()
+	
+	// Usa SSL, TLS ou nenhum na inicializacao
+	oServer:SetUseSSL(lSSL)
+	oServer:SetUseTLS(lTLS)
+
+	// Inicializacao do objeto de Email
+	nErr := oServer:init("",cServer,cConta,cSenha2,,nSMTPPort)
+	If nErr <> 0	
+		CoNout("[Init SMTP] Falha ao inicializar SMTP: " + oServer:getErrorString(nErr)) // "[Init SMTP] Falha ao inicializar SMTP: " 	
+		Return(.F.)
+	Else
+		CoNout("[Init SMTP] Sucesso ao inicializar SMTP " + oServer:getErrorString(nErr)) //"[Init SMTP] Sucesso ao inicializar SMTP "
+	Endif
+	
+	// Define o Timeout SMTP
+	nErr := oServer:SetSMTPTimeout(nSMTPTime)
+	If nErr <> 0
+		CoNout("[SetSMTPTimeout] Falha ao definir timeout: " + oServer:getErrorString(nErr)) //"[SetSMTPTimeout] Falha ao definir timeout: "
+		Return(.F.)
+	Else
+		conout( "[SetSMTPTimeout] Sucesso ao definir Timeout SMTP: " + oServer:getErrorString(nErr)) //"[SetSMTPTimeout] Sucesso ao definir Timeout SMTP: "
+	EndIf
+	
+	// Conecta ao servidor
+	nErr := oServer:smtpConnect()
+	If nErr <> 0	
+		CoNout("[Connect SMTP] Falha ao conectar: " + oServer:getErrorString(nErr)) // "[Connect SMTP] Falha ao conectar: "		
+		oServer:SMTPDisconnect()
+		Help(" ",1,"[Connect SMTP] Falha ao conectar: ",,oServer:getErrorString(nErr),4,5)      //Atencao
+		Return(.F.)
+	Else
+		CoNout("[Connect SMTP] Sucesso ao conectar SMTP" + oServer:getErrorString(nErr)) // "[Connect SMTP] Sucesso ao conectar SMTP"
+	EndIf
+	
+	// Realiza autenticacao no servidor
+	If lRelauth
+		If !lOperAuth
+			cFrom := GetNewPar("MV_RELFROM","") 	// E-mail do remetente
+		EndIf
+		nErr := oServer:smtpAuth(cConta, cSenha2)
+		If nErr <> 0		
+			
+			oServer:SMTPDisconnect()
+			
+			Return(.F.)
+		Else
+			
+		EndIf
+	EndIf	
+	
+	
+	// Cria uma nova mensagem (TMailMessage)
+	oMessage := TMailMessage():New()
+	oMessage:clear()
+	
+	oMessage:cFrom		:= cFrom
+	oMessage:cTo    	:= cEmailTo
+	oMessage:cCC		:= cEmailCc
+	oMessage:cBCC		:= cEmailCco
+	oMessage:cSubject	:= cAssunto
+	oMessage:cBody 		:= cMensagem
+
+	nErr := oMessage:Send( oServer )
+		  
+	If nErr == 0	
+		lResult := .T.
+	EndIf
+	
+	
+	nErr := oServer:SmtpDisconnect()
+	If nErr == 0	
+		lResult := .T.
+	EndIf
+	
+Else
+	
+	CONNECT SMTP SERVER cServer ACCOUNT cConta PASSWORD cSenha2 RESULT lResult
+	
+	// Se a conexao com o SMPT esta ok
+	If lResult
+	
+		// Se existe autenticacao para envio valida pela funcao MAILAUTH
+		If lRelauth
+			lRet := Mailauth(cConta,cSenha2)	
+		Else
+			lRet := .T.	
+	    Endif    
+	
+		If lRet
+			SEND MAIL FROM cFrom ;
+			TO      	cEmailTo;
+			CC  	   	cEmailCc;
+			BCC     	cEmailCco;
+			SUBJECT 	cAssunto;
+			BODY    	cMensagem;
+			ATTACHMENT  cAttach  ;
+			RESULT lResult
+			
+			If !lResult
+				//Erro no envio do email
+				GET MAIL ERROR cError
+				
+			Endif
+	
+		Else
+			GET MAIL ERROR cError
+	
+		Endif
+			
+		DISCONNECT SMTP SERVER
+	Else
+		//Erro na conexao com o SMTP Server
+		GET MAIL ERROR cError
+
+	Endif
+EndIf
+
+Return(lResult)
 
 
 

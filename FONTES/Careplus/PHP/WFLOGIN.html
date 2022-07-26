@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Care Plus:</title>
+    <link rel="stylesheet" href="config/WFLOGIN.css">
+    <script>
+        function eCheck()
+        {
+            var usuario1 = document.f1.usuario.value;
+            //alert(usuario1)
+            var usuario2 = document.f1.usuarioid.value;
+            //alert(usuario2)
+            var senha1 = document.f1.senha.value;
+            //alert(senha1)
+            var senha2 = document.f1.senha.value;
+            //alert(senha2)
+
+            if (usuario1 == usuario2)
+            {
+                if (senha1 == senha2){
+                    return true;
+                }
+                else{
+                    alert("SENHA INCORRETA")
+                    return false;
+                }
+            }
+            else{
+                alert("USUARIO INCORRETO")
+                return false;
+            }
+        }
+    </script>
+</head>
+<body>
+    <form class="form" name="f1" action="https://careplus.com.br/demotour/connection/valida_login.php" method="POST" onSubmit="return eCheck();">
+
+        <div class="card">
+                <div class="card-top">
+                    <img src="https://www4.careplus.com.br/cdn/images/Logo_CP1.png" alt="Logo_CP1.png">
+                    <h2 class="title">Login Care Plus:</h2>
+                    <p>Gerenciar Acesso:</p> 
+                </div>
+
+                <input type="hidden" name="usuarioid" id="ctusuario" value="%cUserAprov%" />
+                <input type="hidden" name="coduser"   id="ctcoduser" value="%cCoduser%" />
+                <input type="hidden" name="cLink"     id="ctcLink"   value="%cLink%" />
+
+                <div class="card-group">
+                    <label>Usuário:</label>
+                    <input type="text" name="usuario" placeholder="Digite seu usuário" required>
+                </div>
+        
+                <input type="hidden" name="senhaid" id="ctsenha" value="%cPassAprov%" />
+                <div class="card-group">
+                    <label>Senha:</label>
+                    <input type="password" name="senha" placeholder="Digite sua senha" required>
+                </div>
+        
+                <div class="card-group btn">
+                    <button type="submit">Acessar</button>
+                </div>
+        </div>
+    </form>
+</body>
+</html>

@@ -11,7 +11,7 @@
 
 /*
 +------------+----------+--------+----------------+-------+----------------+
-| Programa:  | PdComNim | Autor: | Ronaldo Robes | Data: |   Jul/2021     |
+| Programa:  | PdComNim | Autor: |Isaias Gravatal | Data: |   Jul/2021     |
 +------------+----------+--------+---------------+--------+----------------+
 | Descrição: | Programa de para gerar Pedido de compras com origem do Nimbi|
 +------------+-------------------------------------------------------------+
@@ -56,21 +56,21 @@ EndIf
 //	U_MonitRes("0000AD", 2, , cIdPZB, cMenssagem, .T., "Get de pedidos Nimbi", cResult, "", "", .F., .F.)
 
 	//Adiciona informaçoes no cabecalho de autenticacao do Rest
-	If "L91FWF_TESTE" $ UPPER(Alltrim(GetEnvServer())) //Caso seja ambiente de Produção
-		aAdd(aHeader,'Content-Type:application/json')
-		aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-		aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
-		aAdd(aHeader,'companyTaxNumber:02725347000127')
-		aAdd(aHeader,'companyCountryCode:BR')
+	//If "L91FWF_HOM" $ UPPER(Alltrim(GetEnvServer())) //Caso seja ambiente de Produção
+		aAdd(aHeader,'Content-Type: application/json')
+		aAdd(aHeader,'ClientAPI_ID: 6951056a-bf4c-416e-8b80-366a2b97ac0e')
+		aAdd(aHeader,'ClientAPI_Key: 7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
+		aAdd(aHeader,'companyTaxNumber: 02725347000127')
+		aAdd(aHeader,'companyCountryCode: BR')
 		cUrl := "https://api01-qa.nimbi.net.br/"
-	else
-		aAdd(aHeader,'Content-Type:application/json')
-		aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-		aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
-		aAdd(aHeader,'companyTaxNumber:02725347000127')
-		aAdd(aHeader,'companyCountryCode:BR')
-		cUrl := "https://api01-qa.nimbi.net.br/"
-	EndIf
+	//else
+		//aAdd(aHeader,'Content-Type:application/json')
+		//aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
+		//aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
+		//aAdd(aHeader,'companyTaxNumber:02725347000127')
+		//aAdd(aHeader,'companyCountryCode:BR')
+		//cUrl := "https://api01-qa.nimbi.net.br/"
+	//EndIf
 	dbSelectArea("SC7")
 	//URL da aplicacao Rest
 	oRest := FWRest():New(cUrl)
@@ -161,7 +161,7 @@ EndIf
 					//-----------------------------------------------------------//
 					lRet := IncPed( AllTrim(STR(oObj1:purchaseOrders[nX]:id)) )
 
-					If lRet .and. .F.
+					If lRet
 						//-------------------------------------------------------------//
 						//  Chama Api para alterar status do pedido de compra no Nimbi //
 						//-------------------------------------------------------------//
@@ -177,6 +177,7 @@ EndIf
 			MsgInfo("No momento nao foi possivel encontrar pedidos no Nimbi " + CRLF + " Tente mais tarde!")
 		EndIf
 	Else
+		cResult := oRest:GetLastError()
 		MsgInfo("Houve problema em busca pelo Get")
 		Return()
 	EndIf
@@ -191,7 +192,7 @@ Return()
 
 /*
 +------------+----------+--------+----------------+-------+----------------+
-| Programa:  | gPedCab  | Autor: |Ronaldo Robes | Data: |   Jul/2021     |
+| Programa:  | gPedCab  | Autor: |Isaias Gravatal | Data: |   Jul/2021     |
 +------------+----------+--------+---------------+--------+----------------+
 | Descrição: | Função utilizada para coletar dados do cabecalho de         |
 |            | pedido de compra                                            |
@@ -216,14 +217,14 @@ Static Function gPedCab(nIdPed)
 	If "L91FWF_TESTE" $ UPPER(Alltrim(GetEnvServer())) //Caso seja ambiente de Produção
 		aAdd(aHeader,'Content-Type:application/json')
 		aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-		aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+		aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
 		aAdd(aHeader,'companyTaxNumber:02725347000127')
 		aAdd(aHeader,'companyCountryCode:BR')
 		cUrl := "https://api01-qa.nimbi.net.br/"
 	else
 		aAdd(aHeader,'Content-Type:application/json')
 		aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-		aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+		aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
 		aAdd(aHeader,'companyTaxNumber:02725347000127')
 		aAdd(aHeader,'companyCountryCode:BR')
 		cUrl := "https://api01-qa.nimbi.net.br/"
@@ -345,7 +346,7 @@ Static Function gPedCab(nIdPed)
 					nPOs := aScan(aUser , {|x | Upper(AllTrim(x[3])) == UPPER(Substr(oObj2:purchaseOrder:BUYERCONTACT,1,at('@',oObj2:purchaseOrder:BUYERCONTACT)-1))})
 					__cUserId:= aUser[npos][2]
 					aadd(aCabec,{"C7_NUM"     , cDoc})
-					aadd(aCabec,{"C7_XIDNIMB"       , cValtochar(oObj2:purchaseOrder:id)                                             })
+					aadd(aCabec,{"C7_XIDNIMB"       , cValtochar(oObj2:purchaseOrder:id)                           })
 					aadd(aCabec,{"C7_EMISSAO" , stod(StrTran(SubStr(oObj2:purchaseOrder:CreatedDate,1,10), '-',''))})
 					aadd(aCabec,{"C7_FORNECE" , SA2->A2_COD                                                        })
 					aadd(aCabec,{"C7_LOJA"    , SA2->A2_LOJA                                                       })
@@ -379,7 +380,7 @@ Return(lRet)
 
 /*
 +------------+----------+--------+----------------+-------+----------------+
-| Programa:  | gPedIte  | Autor: |Ronaldo Robes | Data: |   Jul/2021     |
+| Programa:  | gPedIte  | Autor: |Isaias Gravatal | Data: |   Jul/2021     |
 +------------+----------+--------+---------------+--------+----------------+
 | Descrição: | Função utilizada para coletar dados de Itens do pedido      |
 +------------+-------------------------------------------------------------+
@@ -410,14 +411,14 @@ Static Function gPedIte(nIdPed)
 	If "L91FWF_TESTE" $ UPPER(Alltrim(GetEnvServer())) //Caso seja ambiente de Produção
 		aAdd(aHeader,'Content-Type:application/json')
 		aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-		aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+		aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
 		aAdd(aHeader,'companyTaxNumber:02725347000127')
 		aAdd(aHeader,'companyCountryCode:BR')
 		cUrl := "https://api01-qa.nimbi.net.br/"
 	else
 		aAdd(aHeader,'Content-Type:application/json')
 		aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-		aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+		aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
 		aAdd(aHeader,'companyTaxNumber:02725347000127')
 		aAdd(aHeader,'companyCountryCode:BR')
 		cUrl := "https://api01-qa.nimbi.net.br/"
@@ -468,6 +469,7 @@ Static Function gPedIte(nIdPed)
 
 						aLinha := {}
 						aadd(aLinha,{"C7_ITEM"    , StrZero(nX, 4)             , Nil})
+						//aadd(aCabec,{"C7_XIDNIMB"       , cValtochar(oObj2:purchaseOrder:id)                           })
 						aadd(aLinha,{"C7_PRODUTO" , oObj4:orderItem:code       , Nil})
 						aadd(aLinha,{"C7_QUANT"   , oObj4:orderItem:Quantity   , Nil})
 						aadd(aLinha,{"C7_PRECO"   , oObj4:orderItem:UnitPrice  , Nil})
@@ -557,7 +559,7 @@ Return(lRet)
 
 /*
 +------------+----------+--------+----------------+-------+----------------+
-| Programa:  | PAltPed  | Autor: |Ronaldo | Data: |   Jul/2021     |
+| Programa:  | PAltPed  | Autor: |Isaias Gravatal | Data: |   Jul/2021     |
 +------------+----------+--------+---------------+--------+----------------+
 | Descrição: | Função utilizada para atualizar status de pedido de compra  |
 |            | no sistema Nimbi                                            |
@@ -581,14 +583,14 @@ Static Function PAltPed(nIdPed,nOpc, cMsg)
 	If "L91FWF_TESTE" $ UPPER(Alltrim(GetEnvServer())) //Caso seja ambiente de Produção
 		aAdd(aHeader,'Content-Type:application/json')
 		aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-		aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+		aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
 		aAdd(aHeader,'companyTaxNumber:02725347000127')
 		aAdd(aHeader,'companyCountryCode:BR')
 		cUrl := "https://api01-qa.nimbi.net.br/"
 	else
 		aAdd(aHeader,'Content-Type:application/json')
 		aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-		aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+		aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
 		aAdd(aHeader,'companyTaxNumber:02725347000127')
 		aAdd(aHeader,'companyCountryCode:BR')
 		cUrl := "https://api01-qa.nimbi.net.br/"
@@ -671,7 +673,7 @@ Static Function IncPed(nIdPed)
 		//-------------------------------------------------------------//
 		//  Chama Api para alterar status do pedido de compra no Nimbi //
 		//-------------------------------------------------------------//
-		PAltPed(AllTrim(nIdPed), 1)
+		//(AllTrim(nIdPed), 1)
 
 		lRet := .T.
 	Else
@@ -712,8 +714,9 @@ Static Function IncPed(nIdPed)
 		EndIF
 		lRet := .F.
 	EndIf
-
-	RESET ENVIRONMENT
+	If IsBlind()
+		RESET ENVIRONMENT
+	Endif
 
 Return(lRet)
 
@@ -726,7 +729,7 @@ Busca e retorna um usuário com base no nome
 
 @return aUser Array com os dados do usuário encontrado
 
-@author 
+@author Daniel Mendes
 @since 25/06/2020
 @version 1.0
 */
@@ -766,14 +769,14 @@ User Function PNINSTA(nIdPed)
 	If "L91FWF_TESTE" $ UPPER(Alltrim(GetEnvServer())) //Caso seja ambiente de Produção
 		aAdd(aHeader,'Content-Type:application/json')
 		aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-		aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+		aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
 		aAdd(aHeader,'companyTaxNumber:02725347000127')
 		aAdd(aHeader,'companyCountryCode:BR')
 		cUrl := "https://api01-qa.nimbi.net.br/"
 	else
 		aAdd(aHeader,'Content-Type:application/json')
 		aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-		aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+		aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
 		aAdd(aHeader,'companyTaxNumber:02725347000127')
 		aAdd(aHeader,'companyCountryCode:BR')
 		cUrl := "https://api01-qa.nimbi.net.br/"

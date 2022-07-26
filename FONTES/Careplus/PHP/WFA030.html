@@ -1,0 +1,235 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<title>Aprova&ccedil;&atilde;o de Pedido de Compra</title>
+		<style type="text/css">
+			.button { font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 10px; color: #000000; border: 1px ridge #CC6600; font-weight: bold; margin: 1px; padding: 10px; background-color: #ECEEEB; }
+			.text   { font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 11px; color: 660000; text-decoration: none; font-style: normal; }
+			.title  { font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 13px; color: 660000; text-decoration:none; font-weight: bold; }
+			.table  { border-bottom:1px solid #999; border-right:1px solid #999; border-left:1px solid #999; border-top:1px solid #999; margin:1em auto; }
+			.form0  { font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 13px; color:#FFF; text-decoration: none; font-weight: bold; background-color:#788EA7}
+			.form1  { font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 10px; color: #000000; text-decoration: none; font-weight: bold; background-color:#ECF0EE;}
+			.form2  { font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 11px; color: #333333; text-decoration: none; background-color:#F7F9F8;}
+			.form3  { font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 9px; color: #333333; text-decoration: none; background-color:#F7F9F8; font-weight:bold}
+			.form4  { font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 16px; color:#F00; text-decoration: none;}
+			.links  { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: 660000; text-decoration:underline; font-style: normal;}
+			.top_bg { background:url(https://www4.careplus.com.br/cdn/images/top_bg.gif) center repeat-x; margin:0; padding:0; font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 13px; text-decoration: none; font-weight: bold; text-align:center; color:#FFF}
+		</style>
+	<script language="JavaScript" type="text/javascript">
+		<!-- FUNCAO PARA ENVIO DO FORMULARIO -->
+		function jSend()
+		{
+		var cObs = document.getElementsByName("COBSAPR")[0];
+ 		var lRejeitado = getValueChecked("APROVACAO");
+ 		console.info("entrou");
+ 		console.info(lRejeitado);
+ 	 
+ 		if (lRejeitado == "N") {
+ 	 
+ 			if (cObs.value == '') {
+ 				alert('Atenção: Informe a observação para envio do formulário!');
+	 		return;
+			 		}
+ 				 }
+ 	 
+ 			document.getElementById("cmdEnviar").style.display = "none";
+ 			document.getElementById("cmdLimpar").style.display = "none";
+	 		document.getElementById("msgProc").style.display = "block";
+ 			document.frmWFPedido.submit();
+ 	 
+	 	};
+ 	 
+	 	function getValueChecked(parname) {
+ 		var x = document.getElementsByName(parname);
+	 	for (var i = 0; i < x.length; i++) {
+ 		if (x[i].checked == true) {
+	 	return x[i].value;
+ 		}
+ 	}
+ 	return "";
+			
+		};
+	</script>
+	</head>
+	<body>
+		<table width="90%" class="table">
+			<tr>
+				<td width="7%" align="center"><img src="https://www4.careplus.com.br/cdn/images/Logo_CP1.png" alt="Logo_CP1.png" border="0" />
+				<td width="93%" align="center" class="top_bg" height="50px">APROVA&Ccedil;&Atilde;O DE PEDIDO DE COMPRA</td>
+			</tr>
+		</table>
+		<table width="90%" class="table">
+		  <tr>
+				<td width="100%">
+					<table width="100%" style="border-bottom:1px solid #999">
+						<tr>
+							<td width="100%" colspan="2" class="top_bg" height="50px">DADOS DO PEDIDO</td>
+						</tr>
+						<tr>
+							<td width="15%" class="form1">Pedido de Compra No.</td>
+							<td width="85%" class="form2"><strong>%cNumPed%</strong></td>
+						</tr>
+						<tr>
+							<td width="15%" class="form1">Emiss&atilde;o</td>
+							<td width="85%" class="form2"><strong>%dEmissao%</strong></td>
+						</tr>
+						<tr>
+							<td width="15%" class="form1">Fornecedor</td>
+							<td width="85%" class="form2"><strong>%cCodFor%&nbsp;-&nbsp;%cNomFor%</strong></td>
+						</tr>
+						<tr>
+							<td width="15%" class="form1">Comprador</td>
+							<td width="85%" class="form2"><strong>%cComprador%</strong></td>
+						</tr>
+						<tr>
+							<td width="15%" class="form1">Condi&ccedil;&atilde;o de Pagamento</td>
+							<td width="85%" class="form2"><strong>%cCondPagto%</strong></td>
+						</tr>
+						<tr>
+							<td width="15%" class="form1">Solicitante</td>
+							<td width="85%" class="form2"><strong>%cSolicitante%</strong></td>
+						</tr>
+						<tr>
+							<td width="15%" class="form1">E-mail do Solicitante</td>
+							<td width="85%" class="form2"><strong>%cEmailSolic%</strong></td>
+						</tr>
+						<tr>
+							<td width="15%" class="form1">Data da Solicita&ccedil;&atilde;o</td>
+							<td width="85%" class="form2"><strong>%dDtSolic%</strong></td>
+						</tr>
+						<tr>
+							<td width="15%" class="form1">C&oacute;digo do Aprovador</td>
+							<td width="85%" class="form2"><strong>%cCodAprov%</strong></td>
+						</tr>
+						<tr>
+							<td width="15%" class="form1">Nome do Aprovador</td>
+							<td width="85%" class="form2"><strong>%cNomAprov%</strong></td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+			<tr>
+				<td width="100%">&nbsp;</td>
+			</tr>
+			<tr>
+				<td width="100%">
+					<table width="100%" style="border-bottom:1px solid #999">
+						<tr>
+							<td colspan="12" class="top_bg" height="50px">ITENS DO PEDIDO DE COMPRA</td>
+						</tr>
+						<tr>
+							<td width="2%" class="form1">It.</td>
+							<td width="12%" class="form1">C&oacute;digo Produto</td>
+							<td width="25%" class="form1">Descri&ccedil;&atilde;o</td>
+							<td width="10%" class="form1">Observação</td>
+							<td width="5%" class="form1">C.Custo</td>
+							<td width="5%" class="form1">Un Med</td>
+							<td width="5%" class="form1" align="right">Qtde.</td>
+							<td width="8%" class="form1" align="right">Val. Unit&aacute;rio</td>
+							<td width="7%" class="form1" align="right">Val. Desconto</td>
+							<td width="10%" class="form1" align="right">Val. Total</td>
+							<td width="6%" class="form1" align="center">Entrega</td>
+						</tr>
+						<tr>
+							<td class="form2">%PED.cItem%</td>
+							<td class="form2">%PED.cCodPro%</td>
+							<td class="form2">%PED.cDesPro%</td>
+							<td class="form2">%PED.CObservacao%</td>
+							<td class="form2">%PED.cCCusto%</td>
+							<td class="form2">%PED.cCUMedida%</td>
+							<td class="form2" align="right">%PED.nQtde%</td>
+							<td class="form2" align="right">%PED.nValUnit%</td>
+							<td class="form2" align="right">%PED.nValDesc%</td>
+							<td class="form2" align="right">%PED.nValTot%</td>
+							<td class="form2" align="center">%PED.dDtEntr%</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+			<tr>
+				<td width="100%">&nbsp;</td>
+			</tr>
+			<tr>
+				<td>
+					<table width="30%" style="border-bottom:1px solid #999" align="right">
+						<tr>
+							<td width="100%" colspan="2" class="top_bg" height="25px">TOTAIS</td>
+						</tr>
+						<tr>
+							<td width="25%" class="form1">Valor Inicial</td>
+							<td width="75%" class="form2" align="right"><strong>R$&nbsp;%nValLiq%</strong></td>
+						</tr>
+						<tr>
+							<td width="25%" class="form1">Valor Final</td>
+							<td width="75%" class="form2" align="right"><strong>R$&nbsp;%nValTot%</strong></td>
+						</tr>
+
+					</table>
+				</td>
+			</tr>
+			<tr>
+				<td width="100%">&nbsp;</td>
+			</tr>
+			<tr>
+				<td>
+					<form action="WFHTTPRET.APW" method="POST" name="frmWFPedido">
+						<input type="hidden" name="cCodAprov" value="%cCodAprov%" />
+						<table width="588" align="center">
+							<tr>
+								<td colspan="3" class="top_bg" height="50px">Dados da Aprova&ccedil;&atilde;o / Rejei&ccedil;&atilde;o do Pedido</td>
+							</tr>
+							<tr>
+								<td rowspan="2" width="125" class="form1">Quanto &agrave; Libera&ccedil;&atilde;o?</td>
+                        	    <td width="20" class="form2" valign="middle"><input type="radio" checked="checked" name="optApr" value="%Aprovacao%S" /></td>
+	                            <td width="427" class="form2" valign="middle">Aprovado</td>
+							</tr>
+							<tr>
+            	                <td width="20" class="form2" valign="middle"><input type="radio" name="optApr" value="%Aprovacao%N" /></td>
+                	            <td width="427" class="form2" valign="middle">Reprovado</td>
+							</tr>
+							<tr>
+								<td width="125" class="form1">Observa&ccedil;&otilde;es</td>
+    	                        <td colspan="2" class="form2"><textarea name="txtObs" cols="80" rows="10" class="text">%cObsApr%</textarea></td>
+							</tr>
+						</table>
+						<table width="588" align="center">
+							<tr>
+								<td width="50%" align="center"><input type="button" name="cmdEnviar" id="cmdEnviar" class="button" value="   Enviar   " onclick="jSend()" /></td>
+								<td width="50%" align="center"><input type="reset" name="cmdLimpar" id="cmdLimpar" class="button" value="   Limpar   " /></td>
+							</tr>
+							<tr>
+								<td colspan="2">
+									<div id="msgProc" style="display:none">
+										<table width="100%" align="center">
+											<tr>
+												<td class="text" align="center"><img src="https://www4.careplus.com.br/cdn/images/carregando.gif" alt="carregando.gif" border="0" /></td>
+											</tr>
+											<tr>
+												<td class="text" align="center"><strong>Aguarde.... Processando o envio do formul&aacute;rio...</strong></td>
+											</tr>
+										</table>
+									</div>
+								</td>
+							</tr>
+						</table>
+					</form>
+			  </td>
+			</tr>
+		</table>
+		<table width="90%" align="center">
+			<tr>
+				<td height="52">
+					<div class="top_bg">
+						<div>
+							<center>
+							<font size="1px" face="verdana">TRIYO Â© Copyright 2020. Todos os direitos reservados
+							</font>
+							</center>
+						</div>
+					</div>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>

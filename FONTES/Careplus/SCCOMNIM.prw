@@ -59,7 +59,7 @@ If lret
 
    
    aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-   aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+   aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
    aAdd(aHeader,'companyTaxNumber:02725347000127')
    aAdd(aHeader,'companyCountryCode:BR')
    aAdd(aHeader,'Content-Type:application/json')
@@ -230,7 +230,7 @@ Private aBusca:= {"statusCode=CANCELLED","statusCode=RETURNED"}
 
  Default nStat := 1  
 aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
 aAdd(aHeader,'companyTaxNumber:02725347000127')
 aAdd(aHeader,'companyCountryCode:BR')
 aAdd(aHeader,'Content-Type:application/json')
@@ -311,7 +311,7 @@ Private     lret := .F.
 
    
    aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-   aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+   aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
    aAdd(aHeader,'companyTaxNumber:02725347000127')
    aAdd(aHeader,'companyCountryCode:BR')
    aAdd(aHeader,'Content-Type:application/json')
@@ -549,7 +549,7 @@ Private cPutParam:= Alltrim(SC1->C1_XIDNIMB)+"/Attach"
 
  
 aAdd(aHeader,'ClientAPI_ID:6951056a-bf4c-416e-8b80-366a2b97ac0e')
-aAdd(aHeader,'ClientAPI_Key:1e8ec62d-7743-44ed-8558-a07477ea803e')
+aAdd(aHeader,'ClientAPI_Key:7a92b33b-51db-4b96-a8ab-8d8253aa5d3d')
 aAdd(aHeader,'companyTaxNumber:02725347000127')
 aAdd(aHeader,'companyCountryCode:BR')
 aAdd(aHeader,'Content-Type:application/json')
